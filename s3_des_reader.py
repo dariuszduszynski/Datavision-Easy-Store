@@ -37,6 +37,9 @@ class S3DesReader:
         self.file_size = head["ContentLength"]
         self._etag = head.get("ETag") or ""
 
+        if self.file_size < FOOTER_SIZE:
+            raise ValueError("Object too small to be a valid DES file")
+
         footer_bytes = self._range_get(self.file_size - FOOTER_SIZE, FOOTER_SIZE)
         self._parse_footer(footer_bytes)
 
@@ -141,6 +144,11 @@ class S3DesReader:
                 self._index_loaded = True
                 return
 
+        if self.index_length == 0:
+            self._index_by_name = {}
+            self._index_loaded = True
+            return
+
         raw = self._range_get(self.index_start, self.index_length)
         p = 0
         idx = {}
@@ -201,6 +209,8 @@ class S3DesReader:
         Files that are close to each other (gap <= max_gap_size) are fetched in one range.
         Missing names are ignored.
         """
+        if isinstance(names, str):
+            raise TypeError("names must be a sequence of file names, not a single string")
         if max_gap_size < 0:
             raise ValueError("max_gap_size must be non-negative")
 
