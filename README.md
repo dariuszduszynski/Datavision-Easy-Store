@@ -1,37 +1,23 @@
 # DatavisionEasyStore (DES)
 
-**DatavisionEasyStore (DES)** is a lightweight, binary container format designed for efficiently storing **thousands of small files** inside a **single object** (e.g., on S3, HCP, Ceph RGW).
-It provides **fast point-lookups**, minimal I/O overhead, and requires **no external database**.
-Perfect for workflows where “daily batches” of files are merged into a compact, self-contained archive.
+**DatavisionEasyStore (DES)** is a lightweight, binary container format for storing thousands of small files inside a single object (S3/HCP/Ceph RGW-friendly). It delivers fast point-lookups, minimal I/O, and needs no external database. Great for daily batches where many tiny files are merged into a compact, self-contained archive.
 
 ---
 
-## ✨ Key Features
+## Key Features
 
-* **Fast point lookup**
-  DES stores a binary index with absolute byte ranges, allowing direct `Range GET` access.
-
-* **Two-region layout:**
-
-  * **DATA Region** — raw bytes of all files
-  * **META Region** — JSON metadata per file + binary index
-  * **FOOTER** — global offsets for O(1) access to index and meta
-
-* **Zero external dependencies**
-  All index and metadata are inside the file. No DB required.
-
-* **S3/HCP friendly**
-  DES works perfectly with HTTP range requests — ideal for object stores with high request cost.
-
-* **Simple Python API**
-  `AddFile`, `GetFile`, `ListFiles`, `GetIndex`.
-
-* **Append-only, immutable container**
-  Designed for daily batch creation and fast read access.
+- **Fast point lookup** — binary index with absolute byte ranges enables direct `Range GET`.
+- **Two-region layout** — DATA (raw bytes), META (JSON per file + binary index), FOOTER (offsets/lengths).
+- **Zero external deps** — all index/metadata live inside the file.
+- **S3/HCP friendly** — optimized for HTTP range requests.
+- **Simple Python API** — `add_file`, `get_file`, `list_files`, `get_index`, `get_files_batch`.
+- **Append-only** — immutable container, ideal for daily batch creation.
+- **Index cache** — in-memory cache or pluggable backend (Redis adapter provided).
+- **Daily sharded builder** — helper to shard many files into daily containers.
 
 ---
 
-## 📦 File Structure
+## File Structure
 
 ```text
 +----------------------+   offset = 0
@@ -49,24 +35,18 @@ Perfect for workflows where “daily batches” of files are merged into a compa
 +----------------------+   EOF
 ```
 
-### Footer contains:
+Footer contains: `data_start`, `data_length`, `meta_start`, `meta_length`, `index_start`, `index_length`, `file_count`, magic/version.
 
-* `data_start`, `data_length`
-* `meta_start`, `meta_length`
-* `index_start`, `index_length`
-* `file_count`
-* magic/version for validation
-
-Thanks to the footer, a reader can locate the index using **one final-range request**.
+Thanks to the footer, a reader can locate the index using **one final range request**.
 
 ---
 
-## 🚀 Quick Example
+## Quick Example
 
 ### Writing a DES file
 
 ```python
-from dv_easystore import DesWriter
+from des_core import DesWriter
 
 with DesWriter("2025-11-25.des") as w:
     w.add_file("report.pdf", pdf_bytes, meta={"mime": "application/pdf"})
@@ -76,22 +56,29 @@ with DesWriter("2025-11-25.des") as w:
 ### Reading from a DES file
 
 ```python
-from dv_easystore import DesReader
+from des_core import DesReader, InMemoryIndexCache
 
-r = DesReader("2025-11-25.des")
+r = DesReader("2025-11-25.des", cache=InMemoryIndexCache())
 
-print(r.list_files())
-# ['report.pdf', 'log.txt']
-
+print(r.list_files())  # ['report.pdf', 'log.txt']
 data = r.get_file("report.pdf")
 meta = r.get_meta("report.pdf")
-
 index = r.get_index()
+```
+
+### S3 range reader + batch fetch
+
+```python
+from s3_des_reader import S3DesReader, InMemoryIndexCache
+
+s3r = S3DesReader("my-bucket", "2025-11-25.des", cache=InMemoryIndexCache())
+batch = s3r.get_files_batch(["report.pdf", "log.txt"])
+# batch uses one range when files sit next to each other
 ```
 
 ---
 
-## 🧩 Python API
+## Python API
 
 ### `DesWriter(path)`
 
@@ -101,47 +88,60 @@ index = r.get_index()
 | `close()`                        | Finalize META, build INDEX, write FOOTER.                  |
 | Context manager                  | Automatically calls `close()`.                             |
 
-### `DesReader(path)`
+### `DesReader(path, cache=None)`
 
-| Method               | Description                               |
-| -------------------- | ----------------------------------------- |
-| `list_files()`       | Return all filenames in the index.        |
-| `get_file(name)`     | Read file bytes using stored byte ranges. |
-| `get_meta(name)`     | Retrieve JSON metadata.                   |
-| `get_index()`        | Return full index entries.                |
-| `__contains__(name)` | Check if a file exists in the container.  |
+- `list_files()`, `get_file(name)`, `get_meta(name)`, `get_index()`, `__contains__`.
+- Optional `cache`/`cache_key` to reuse the binary index (in-memory or pluggable backend).
 
----
+### `S3DesReader(bucket, key, cache=None)`
 
-## 🏎 Performance Characteristics
+- Same surface as `DesReader`, but operates via S3 `Range GET`.
+- `get_files_batch(names, max_gap_size=1MB)` groups adjacent files to minimize requests.
+- Validates footer magic/version and object size.
 
-* **O(1) lookup**: index is binary and fixed-layout.
-* **Minimal I/O**:
+### Cache backends
 
-  * First access → 2 range reads (footer + index)
-  * Subsequent reads → 1 range per file
-* **Ideal for object storage** pricing models
-  where request count matters more than bandwidth.
+- `InMemoryIndexCache` — simple in-process cache.
+- `RedisIndexCache` — adapter for a Redis client (optional dependency), JSON-serialized index; TTL optional.
 
----
+### Daily sharded store
 
-## 🧱 Format Versioning
+- `DailyShardedDesStore` — shards files by hash into daily directories (`YYYY-MM-DD/<shard>.des`), uses Snowflake-like names per file.
+- `iter_daily_des_files(base_dir, day)` — iterate DES files for a given day.
 
-* `HEADER_MAGIC = "DESHEAD1"`
-* `FOOTER_MAGIC = "DESFOOT1"`
-* `VERSION = 1`
+### Snowflake-like name generator
 
-Future versions will remain backwards-compatible using magic/version fields.
+- `SnowflakeNameGenerator` — generates `<PREFIX>_YYYYMMDD_(FFFFFFFFFFFF_CC)` with node_id/wrap_bits; prefix now validated to ASCII letters/digits only.
 
 ---
 
-## 🗑 What About Deletion?
+## Performance Characteristics
 
-v1 is append-only.
-Logical deletion (`flags`) and compaction will be added in v2.
+- **O(1) lookup**: binary, fixed-layout index.
+- **Minimal I/O**:
+  - First access → 2 range reads (footer + index)
+  - Subsequent reads → 1 range per file
+  - Batch reads → 1 range per group of adjacent files
+- Ideal for object storage pricing where request count matters more than bandwidth.
 
 ---
 
-## 📜 License
+## Format Versioning
+
+- `HEADER_MAGIC = "DESHEAD1"`
+- `FOOTER_MAGIC = "DESFOOT1"`
+- `VERSION = 1`
+
+Future versions remain backwards-compatible via magic/version fields.
+
+---
+
+## Deletion?
+
+v1 is append-only. Logical deletion (`flags`) and compaction are planned for v2.
+
+---
+
+## License
 
 MIT (or choose your preferred license).
