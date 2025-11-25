@@ -16,6 +16,8 @@ setup(
         "psycopg2-binary>=2.9.0",
         "redis>=4.5.0",
         "pydantic>=2.0.0",
+        "fastapi>=0.103.0",
+        "uvicorn>=0.23.0",
         "click>=8.1.0",
         "pyyaml>=6.0",
         "prometheus-client>=0.16.0",
