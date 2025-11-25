@@ -24,6 +24,67 @@ ENTRY_FIXED_STRUCT = struct.Struct("<QQQQI")     # data_offset, data_length,
 FOOTER_SIZE = FOOTER_STRUCT.size  # 72 B
 
 
+class IndexCacheBackend:
+    """
+    Minimal adapter dla cache indeksu.
+    Implementacje powinny zwracać listę IndexEntry lub None, gdy wpisu brak.
+    """
+
+    def get(self, key: str) -> Optional[List["IndexEntry"]]:
+        raise NotImplementedError
+
+    def set(self, key: str, entries: List["IndexEntry"]) -> None:
+        raise NotImplementedError
+
+
+class InMemoryIndexCache(IndexCacheBackend):
+    """
+    Prosty cache w pamięci procesu.
+    """
+
+    def __init__(self):
+        self._store: Dict[str, List["IndexEntry"]] = {}
+
+    def get(self, key: str) -> Optional[List["IndexEntry"]]:
+        cached = self._store.get(key)
+        if cached is None:
+            return None
+        return [IndexEntry(**entry.__dict__) for entry in cached]
+
+    def set(self, key: str, entries: List["IndexEntry"]) -> None:
+        self._store[key] = [IndexEntry(**entry.__dict__) for entry in entries]
+
+
+class RedisIndexCache(IndexCacheBackend):
+    """
+    Adapter pod klienta Redis (np. redis-py) – zależność opcjonalna.
+    Wartość trzymana jako JSON (lista słowników).
+    """
+
+    def __init__(self, client, ttl_seconds: Optional[int] = None):
+        self.client = client
+        self.ttl_seconds = ttl_seconds
+
+    def get(self, key: str) -> Optional[List["IndexEntry"]]:
+        raw = self.client.get(key)
+        if not raw:
+            return None
+        if isinstance(raw, bytes):
+            raw = raw.decode("utf-8")
+        try:
+            payload = json.loads(raw)
+        except Exception:
+            return None
+        return _deserialize_index_entries(payload)
+
+    def set(self, key: str, entries: List["IndexEntry"]) -> None:
+        payload = json.dumps(_serialize_index_entries(entries), separators=(",", ":"))
+        if self.ttl_seconds:
+            self.client.set(key, payload, ex=self.ttl_seconds)
+        else:
+            self.client.set(key, payload)
+
+
 @dataclass
 class IndexEntry:
     name: str
@@ -32,6 +93,39 @@ class IndexEntry:
     meta_offset: int
     meta_length: int
     flags: int = 0
+
+
+def _serialize_index_entries(entries: List[IndexEntry]) -> List[dict]:
+    return [
+        {
+            "name": e.name,
+            "data_offset": e.data_offset,
+            "data_length": e.data_length,
+            "meta_offset": e.meta_offset,
+            "meta_length": e.meta_length,
+            "flags": e.flags,
+        }
+        for e in entries
+    ]
+
+
+def _deserialize_index_entries(items: List[dict]) -> List[IndexEntry]:
+    result = []
+    for d in items or []:
+        try:
+            result.append(
+                IndexEntry(
+                    name=d["name"],
+                    data_offset=int(d["data_offset"]),
+                    data_length=int(d["data_length"]),
+                    meta_offset=int(d["meta_offset"]),
+                    meta_length=int(d["meta_length"]),
+                    flags=int(d.get("flags", 0)),
+                )
+            )
+        except KeyError:
+            continue
+    return result
 
 
 # --- Writer ---
@@ -160,16 +254,24 @@ class DesReader:
     Reader do plików DES.
     """
 
-    def __init__(self, path: str):
+    def __init__(
+        self,
+        path: str,
+        cache: Optional[IndexCacheBackend] = None,
+        cache_key: Optional[str] = None,
+    ):
         self.path = path
         self._f: BinaryIO = open(path, "rb")
         self._read_footer()
+        self._cache = cache
+        self._cache_key = cache_key or self._default_cache_key()
         self._index_loaded = False
         self._index_by_name: Dict[str, IndexEntry] = {}
 
     def _read_footer(self):
         self._f.seek(0, os.SEEK_END)
         file_size = self._f.tell()
+        self.file_size = file_size
         if file_size < FOOTER_SIZE:
             raise ValueError("File too small to be a valid DES file")
 
@@ -193,9 +295,23 @@ class DesReader:
         if version != VERSION:
             raise ValueError(f"Unsupported DES version: {version}")
 
+    def _default_cache_key(self) -> str:
+        try:
+            mtime = int(os.path.getmtime(self.path))
+        except OSError:
+            mtime = 0
+        return f"DES:{os.path.abspath(self.path)}:{self.file_size}:{mtime}:{VERSION}"
+
     def _load_index(self):
         if self._index_loaded:
             return
+
+        if self._cache and self._cache_key:
+            cached = self._cache.get(self._cache_key)
+            if cached:
+                self._index_by_name = {e.name: e for e in cached}
+                self._index_loaded = True
+                return
 
         self._f.seek(self.index_start)
         end = self.index_start + self.index_length
@@ -230,6 +346,9 @@ class DesReader:
 
         self._index_by_name = index
         self._index_loaded = True
+
+        if self._cache and self._cache_key:
+            self._cache.set(self._cache_key, list(index.values()))
 
     def list_files(self) -> List[str]:
         self._load_index()

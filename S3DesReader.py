@@ -1,5 +1,6 @@
 import json
 import struct
+from typing import Optional
 import boto3
 
 from dv_easystore import (
@@ -7,6 +8,8 @@ from dv_easystore import (
     FOOTER_SIZE,
     ENTRY_FIXED_STRUCT,
     IndexEntry,
+    IndexCacheBackend,
+    VERSION,
 )
 
 
@@ -16,30 +19,39 @@ class S3DesReader:
     No local temp files. Pure streaming.
     """
 
-    def __init__(self, bucket: str, key: str, s3_client=None):
+    def __init__(
+        self,
+        bucket: str,
+        key: str,
+        s3_client=None,
+        cache: Optional[IndexCacheBackend] = None,
+        cache_key: Optional[str] = None,
+    ):
         self.bucket = bucket
         self.key = key
         self.s3 = s3_client or boto3.client("s3")
+        self._cache = cache
 
         # Read footer (always last FOOTER_SIZE bytes)
-        file_size = self._get_size()
-        self.file_size = file_size
+        head = self._get_head()
+        self.file_size = head["ContentLength"]
+        self._etag = head.get("ETag") or ""
 
         footer_bytes = self._range_get(
-            file_size - FOOTER_SIZE, FOOTER_SIZE
+            self.file_size - FOOTER_SIZE, FOOTER_SIZE
         )
         self._parse_footer(footer_bytes)
 
         self._index_loaded = False
         self._index_by_name = {}
+        self._cache_key = cache_key or self._default_cache_key()
 
     # ----------------------------------------------------------
     # S3 helpers
     # ----------------------------------------------------------
 
-    def _get_size(self) -> int:
-        head = self.s3.head_object(Bucket=self.bucket, Key=self.key)
-        return head["ContentLength"]
+    def _get_head(self) -> dict:
+        return self.s3.head_object(Bucket=self.bucket, Key=self.key)
 
     def _range_get(self, offset: int, length: int) -> bytes:
         end = offset + length - 1
@@ -70,10 +82,22 @@ class S3DesReader:
 
         if magic != b"DESFOOT1":
             raise ValueError("Invalid DES footer magic")
+        if version != VERSION:
+            raise ValueError(f"Unsupported DES version: {version}")
+
+    def _default_cache_key(self) -> str:
+        return f"DES_S3:{self.bucket}:{self.key}:{self.file_size}:{self._etag}:{VERSION}"
 
     def _load_index(self):
         if self._index_loaded:
             return
+
+        if self._cache and self._cache_key:
+            cached = self._cache.get(self._cache_key)
+            if cached:
+                self._index_by_name = {e.name: e for e in cached}
+                self._index_loaded = True
+                return
 
         raw = self._range_get(self.index_start, self.index_length)
         p = 0
@@ -106,6 +130,9 @@ class S3DesReader:
 
         self._index_by_name = idx
         self._index_loaded = True
+
+        if self._cache and self._cache_key:
+            self._cache.set(self._cache_key, list(idx.values()))
 
     # ----------------------------------------------------------
     # Public API
