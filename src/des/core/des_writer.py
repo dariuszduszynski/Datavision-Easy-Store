@@ -11,6 +11,12 @@ from typing import BinaryIO, List, Optional
 from des.core.constants import *
 from des.core.models import IndexEntry, ExternalFileInfo
 
+from __future__ import annotations  # ← Na początku każdego pliku
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from des.core.cache import IndexCacheBackend
+
 
 class DesWriter:
     """

@@ -1,255 +1,256 @@
 """
-DesReader for local DES files (no S3).
+DesWriter with support for external big files.
 """
+import io
 import json
 import os
+import re
 import struct
-from typing import BinaryIO, Dict, List, Optional, Sequence
+from typing import BinaryIO, List, Optional
 
 from des.core.constants import *
-from des.core.models import IndexEntry, DesStats
+from des.core.models import IndexEntry, ExternalFileInfo
 
 
-class DesReader:
+class DesWriter:
     """
-    DES reader for local files.
+    Creates new DES archive with optional external storage for big files.
     
-    Supports external big files in _bigFiles/ folder (relative to DES file).
+    External files are stored in S3 under: {s3_prefix}/_bigFiles/{filename}
     """
     
     def __init__(
         self,
         path: str,
-        cache: Optional['IndexCacheBackend'] = None,
-        cache_key: Optional[str] = None,
+        big_file_threshold: int = DEFAULT_BIG_FILE_THRESHOLD,
+        s3_client=None,
+        bucket: Optional[str] = None,
+        s3_prefix: Optional[str] = None,
     ):
         """
         Args:
-            path: Path to DES file (e.g. "/data/2025-01-15/shard_00.des")
-            cache: Optional cache backend for index
-            cache_key: Optional cache key (auto-generated if None)
+            path: Local file path for DES archive (e.g. "/tmp/shard_00.des")
+            big_file_threshold: Files >= this size go to external storage (bytes)
+            s3_client: Optional boto3 S3 client for external files
+            bucket: S3 bucket name for external files
+            s3_prefix: S3 prefix for this archive (e.g. "2025-01-15/shard_00")
+                      External files will be: {bucket}/{s3_prefix}/_bigFiles/{name}
         """
         self.path = path
-        self._cache = cache
+        self.big_file_threshold = big_file_threshold
         
-        if not os.path.exists(path):
-            raise FileNotFoundError(f"DES file not found: {path}")
+        # External storage config
+        self.s3_client = s3_client
+        self.bucket = bucket
+        self.s3_prefix = s3_prefix
         
-        # Base directory for external files
-        self.base_dir = os.path.dirname(path)
+        # Validate external storage setup
+        has_s3 = s3_client is not None
+        has_bucket = bucket is not None
+        has_prefix = s3_prefix is not None
         
-        # File handle
-        self._f: Optional[BinaryIO] = None
-        self.file_size = os.path.getsize(path)
+        if has_s3 or has_bucket or has_prefix:
+            # If any external storage param is set, all must be set
+            if not (has_s3 and has_bucket and has_prefix):
+                raise ValueError(
+                    "External storage requires all of: s3_client, bucket, s3_prefix"
+                )
         
-        if self.file_size < MIN_DES_FILE_SIZE:
+        self._external_storage_enabled = has_s3 and has_bucket and has_prefix
+        
+        if os.path.exists(path):
+            raise FileExistsError(f"File already exists: {path}")
+        
+        # Ensure directory exists
+        dir_path = os.path.dirname(path)
+        if dir_path and not os.path.exists(dir_path):
+            os.makedirs(dir_path, exist_ok=True)
+        
+        self._f: BinaryIO = open(path, "wb")
+        
+        # Write HEADER
+        self._f.write(HEADER_STRUCT.pack(HEADER_MAGIC, VERSION, b"\0" * 7))
+        self.data_start = self._f.tell()
+        
+        # State
+        self._entries: List[IndexEntry] = []
+        self._meta_buf = io.BytesIO()
+        self._closed = False
+        
+        # External files tracking
+        self._external_files: List[ExternalFileInfo] = []
+    
+    def add_file(
+        self,
+        name: str,
+        data: bytes,
+        meta: Optional[dict] = None,
+        force_external: bool = False,
+    ):
+        """
+        Add file to DES archive.
+        
+        Args:
+            name: File name (should be SnowFlake ID)
+            data: File content (bytes)
+            meta: Optional metadata dict (will be JSON-serialized)
+            force_external: Force external storage regardless of size
+        
+        Raises:
+            RuntimeError: If writer is closed
+            TypeError: If data is not bytes
+            ValueError: If name is invalid
+        """
+        if self._closed:
+            raise RuntimeError("Writer is already closed")
+        
+        if not isinstance(data, (bytes, bytearray)):
+            raise TypeError("data must be bytes-like")
+        
+        # Validate filename
+        self._validate_filename(name)
+        
+        data_length = len(data)
+        flags = 0
+        
+        # Decision: internal or external?
+        should_externalize = (
+            force_external or data_length >= self.big_file_threshold
+        ) and self._external_storage_enabled
+        
+        if should_externalize:
+            # Big file → external storage
+            self._upload_external_file(name, data)
+            flags |= FLAG_IS_EXTERNAL
+            
+            # In DES: no data, only metadata
+            data_offset = 0  # Not used for external files
+            
+        else:
+            # Normal file → internal storage
+            data_offset = self._f.tell()
+            self._f.write(data)
+        
+        # META (always in DES, even for external files)
+        meta_dict = meta or {}
+        meta_dict['size'] = data_length
+        
+        if should_externalize:
+            meta_dict['is_external'] = True
+            if self.s3_prefix:
+                meta_dict['external_key'] = f"{self.s3_prefix}/{EXTERNAL_FILES_FOLDER}/{name}"
+        
+        meta_bytes = json.dumps(meta_dict, separators=(",", ":")).encode("utf-8")
+        
+        if len(meta_bytes) > MAX_META_SIZE:
+            raise ValueError(f"Metadata too large: {len(meta_bytes)} bytes (max {MAX_META_SIZE})")
+        
+        meta_offset = self._meta_buf.tell()
+        self._meta_buf.write(meta_bytes)
+        meta_length = len(meta_bytes)
+        
+        # Create index entry
+        entry = IndexEntry(
+            name=name,
+            data_offset=data_offset,
+            data_length=data_length,
+            meta_offset=meta_offset,
+            meta_length=meta_length,
+            flags=flags,
+        )
+        self._entries.append(entry)
+    
+    def _validate_filename(self, name: str):
+        """
+        Validate filename (SnowFlake ID format expected).
+        
+        Valid format: PREFIX_YYYYMMDD_XXXXXXXXXXXX_CC
+        Example: IMG_20250115_1A2B3C4D5E6F_01
+        """
+        if not name:
+            raise ValueError("Filename cannot be empty")
+        
+        # Check byte length
+        name_bytes = name.encode("utf-8")
+        if len(name_bytes) > MAX_FILENAME_LENGTH:
+            raise ValueError(f"Filename too long: {len(name_bytes)} bytes (max {MAX_FILENAME_LENGTH})")
+        
+        # Check for invalid characters (S3 best practices)
+        # Allow: alphanumeric, underscore, dash, period
+        if not re.match(r'^[a-zA-Z0-9_\-\.]+$', name):
             raise ValueError(
-                f"File too small to be valid DES: {self.file_size} bytes "
-                f"(min {MIN_DES_FILE_SIZE})"
+                f"Invalid filename: {name!r} (allowed: alphanumeric, _, -, .)"
             )
         
-        # Load and parse footer
-        footer_bytes = self._read_range(self.file_size - FOOTER_SIZE, FOOTER_SIZE)
-        self._parse_footer(footer_bytes)
-        
-        # Index state
-        self._index_loaded = False
-        self._index_by_name: Dict[str, IndexEntry] = {}
-        self._cache_key = cache_key or self._default_cache_key()
+        # Warn if doesn't look like SnowFlake ID (but don't fail)
+        # Expected pattern: PREFIX_YYYYMMDD_XXXXXXXXXXXX_CC
+        if not re.match(r'^[A-Z]+_\d{8}_[A-F0-9]{12}_\d{2}$', name):
+            # This is just a warning - allow other formats
+            pass
     
-    def _get_file_handle(self) -> BinaryIO:
-        """Get or create file handle."""
-        if self._f is None or self._f.closed:
-            self._f = open(self.path, "rb")
-        return self._f
-    
-    def _read_range(self, offset: int, length: int) -> bytes:
+    def _upload_external_file(self, name: str, data: bytes):
         """
-        Read bytes from file at offset.
-        
-        Args:
-            offset: Start byte offset
-            length: Number of bytes to read
-        
-        Returns:
-            bytes content
-        """
-        f = self._get_file_handle()
-        f.seek(offset)
-        return f.read(length)
-    
-    def _read_external(self, name: str) -> bytes:
-        """
-        Read entire external file from _bigFiles/.
+        Upload file to S3 external storage.
         
         Args:
             name: Filename
-        
-        Returns:
-            File content
+            data: File content
         
         Raises:
-            KeyError: If external file not found
+            RuntimeError: If external storage not configured
         """
-        external_path = os.path.join(self.base_dir, EXTERNAL_FILES_FOLDER, name)
+        if not self._external_storage_enabled:
+            raise RuntimeError("External storage not configured")
         
-        if not os.path.exists(external_path):
-            raise KeyError(f"External file not found: {external_path}")
+        # S3 key: {s3_prefix}/_bigFiles/{name}
+        external_key = f"{self.s3_prefix}/{EXTERNAL_FILES_FOLDER}/{name}"
         
-        with open(external_path, "rb") as f:
-            return f.read()
-    
-    def get_file(self, name: str) -> bytes:
-        """
-        Get file content from DES or external storage.
-        
-        Args:
-            name: Filename to retrieve
-        
-        Returns:
-            File content as bytes
-        
-        Raises:
-            KeyError: If file not found
-        """
-        self._load_index()
-        entry = self._index_by_name.get(name)
-        if not entry:
-            raise KeyError(f"File not found: {name}")
-        
-        # Check external flag
-        if entry.flags & FLAG_IS_EXTERNAL:
-            return self._read_external(entry.name)
-        
-        # Internal file - direct read
-        return self._read_range(entry.data_offset, entry.data_length)
-    
-    def get_files_batch(
-        self,
-        names: Sequence[str],
-        max_gap_size: int = DEFAULT_MAX_GAP_SIZE,
-    ) -> Dict[str, bytes]:
-        """
-        Batch read with support for external files.
-        
-        Adjacent internal files are read in single operation if gap < max_gap_size.
-        External files are read individually.
-        
-        Args:
-            names: Sequence of filenames to retrieve
-            max_gap_size: Maximum gap between files to merge (bytes)
-        
-        Returns:
-            Dict mapping filename to content (missing files are skipped)
-        
-        Raises:
-            TypeError: If names is a string instead of sequence
-        """
-        if isinstance(names, str):
-            raise TypeError("names must be a sequence of file names, not string")
-        
-        self._load_index()
-        
-        # Separate internal and external files
-        internal_names = []
-        external_names = []
-        
-        for name in names:
-            entry = self._index_by_name.get(name)
-            if not entry:
-                continue
+        try:
+            self.s3_client.put_object(
+                Bucket=self.bucket,
+                Key=external_key,
+                Body=data,
+                Metadata={
+                    'original_name': name,
+                    'size': str(len(data)),
+                    'source': 'des-writer',
+                }
+            )
             
-            if entry.flags & FLAG_IS_EXTERNAL:
-                external_names.append(name)
-            else:
-                internal_names.append(name)
-        
-        results = {}
-        
-        # 1. Read internal files (with batching)
-        if internal_names:
-            entries = self._entries_for_names(internal_names)
-            batches = self._group_entries(entries, max_gap_size)
-            internal_results = self._fetch_batches(batches)
-            results.update(internal_results)
-        
-        # 2. Read external files (individually)
-        for name in external_names:
-            try:
-                results[name] = self._read_external(name)
-            except KeyError:
-                # Skip missing external files
-                pass
-        
-        return results
+            # Track uploaded file
+            self._external_files.append(
+                ExternalFileInfo(
+                    name=name,
+                    s3_key=external_key,
+                    size_bytes=len(data),
+                )
+            )
+            
+        except Exception as e:
+            raise RuntimeError(f"Failed to upload external file {name}: {e}") from e
     
-    def get_meta(self, name: str) -> dict:
+    def get_external_files(self) -> List[ExternalFileInfo]:
         """
-        Get file metadata (always from DES, even for external files).
-        
-        Args:
-            name: Filename
+        Get list of uploaded external files.
         
         Returns:
-            Metadata dict
-        
-        Raises:
-            KeyError: If file not found
+            List of ExternalFileInfo with name, s3_key, size
         """
-        self._load_index()
-        entry = self._index_by_name.get(name)
-        if not entry:
-            raise KeyError(f"File not found: {name}")
-        
-        raw = self._read_range(entry.meta_offset, entry.meta_length)
-        return json.loads(raw.decode("utf-8"))
+        return list(self._external_files)
     
-    def list_files(self, include_external: bool = True) -> List[str]:
+    def get_stats(self) -> dict:
         """
-        List all filenames in archive.
-        
-        Args:
-            include_external: Whether to include external files
+        Get current writer statistics (before close).
         
         Returns:
-            List of filenames
+            Dict with files count, sizes, etc.
         """
-        self._load_index()
-        
-        if include_external:
-            return list(self._index_by_name.keys())
-        
-        # Only internal files
-        return [
-            name for name, entry in self._index_by_name.items()
-            if not (entry.flags & FLAG_IS_EXTERNAL)
-        ]
-    
-    def get_index(self) -> List[IndexEntry]:
-        """
-        Get full index as list of IndexEntry.
-        
-        Returns:
-            List of all index entries
-        """
-        self._load_index()
-        return list(self._index_by_name.values())
-    
-    def get_stats(self) -> DesStats:
-        """
-        Get archive statistics.
-        
-        Returns:
-            DesStats with file counts and sizes
-        """
-        self._load_index()
-        
         internal_count = 0
         external_count = 0
         internal_size = 0
         external_size = 0
         
-        for entry in self._index_by_name.values():
+        for entry in self._entries:
             if entry.flags & FLAG_IS_EXTERNAL:
                 external_count += 1
                 external_size += entry.data_length
@@ -257,204 +258,89 @@ class DesReader:
                 internal_count += 1
                 internal_size += entry.data_length
         
-        return DesStats(
-            total_files=len(self._index_by_name),
-            internal_files=internal_count,
-            external_files=external_count,
-            internal_size_bytes=internal_size,
-            external_size_bytes=external_size,
-            archive_size_bytes=self.file_size,
-        )
-    
-    def __contains__(self, name: str) -> bool:
-        """
-        Check if file exists in archive.
-        
-        Args:
-            name: Filename to check
-        
-        Returns:
-            True if file exists
-        """
-        self._load_index()
-        return name in self._index_by_name
-    
-    def __repr__(self) -> str:
-        return f"DesReader(path={self.path!r}, files={self.file_count})"
+        return {
+            'total_files': len(self._entries),
+            'internal_files': internal_count,
+            'external_files': external_count,
+            'internal_size_bytes': internal_size,
+            'external_size_bytes': external_size,
+        }
     
     def close(self):
-        """Close file handle."""
-        if self._f:
-            self._f.close()
-            self._f = None
+        """
+        Finalize DES archive.
+        
+        Writes META region, INDEX region, and FOOTER.
+        """
+        if self._closed:
+            return
+        
+        # Close DATA region
+        self._f.flush()
+        data_end = self._f.tell()
+        data_length = data_end - self.data_start
+        
+        # Write META REGION
+        meta_start = self._f.tell()
+        meta_bytes = self._meta_buf.getvalue()
+        self._f.write(meta_bytes)
+        meta_length = len(meta_bytes)
+        
+        # Convert relative meta_offset to absolute
+        for entry in self._entries:
+            entry.meta_offset = meta_start + entry.meta_offset
+        
+        # Write INDEX REGION
+        index_start = self._f.tell()
+        for entry in self._entries:
+            name_bytes = entry.name.encode("utf-8")
+            
+            # Write: name_length(2) + name + fixed_fields(44)
+            self._f.write(struct.pack("<H", len(name_bytes)))
+            self._f.write(name_bytes)
+            self._f.write(
+                ENTRY_FIXED_STRUCT.pack(
+                    entry.data_offset,
+                    entry.data_length,
+                    entry.meta_offset,
+                    entry.meta_length,
+                    entry.flags,
+                )
+            )
+        
+        index_length = self._f.tell() - index_start
+        file_count = len(self._entries)
+        
+        # Write FOOTER
+        footer = FOOTER_STRUCT.pack(
+            FOOTER_MAGIC,
+            VERSION,
+            b"\0" * 7,  # reserved
+            self.data_start,
+            data_length,
+            meta_start,
+            meta_length,
+            index_start,
+            index_length,
+            file_count,
+        )
+        self._f.write(footer)
+        
+        self._f.flush()
+        self._f.close()
+        self._closed = True
+        
+        # Print summary
+        stats = self.get_stats()
+        print(f"✓ DES archive created: {self.path}")
+        print(f"  Total files: {stats['total_files']}")
+        print(f"  Internal: {stats['internal_files']} ({stats['internal_size_bytes']:,} bytes)")
+        print(f"  External: {stats['external_files']} ({stats['external_size_bytes']:,} bytes)")
     
     def __enter__(self):
         return self
     
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
+        if not self._closed:
+            self.close()
         return False
-    
-    # ========== Internal helper methods ==========
-    
-    def _parse_footer(self, data: bytes):
-        """Parse DES footer."""
-        (
-            magic,
-            version,
-            _reserved,
-            self.data_start,
-            self.data_length,
-            self.meta_start,
-            self.meta_length,
-            self.index_start,
-            self.index_length,
-            self.file_count,
-        ) = FOOTER_STRUCT.unpack(data)
-        
-        if magic != FOOTER_MAGIC:
-            raise ValueError(
-                f"Invalid DES footer magic: {magic!r} (expected {FOOTER_MAGIC!r})"
-            )
-        if version != VERSION:
-            raise ValueError(
-                f"Unsupported DES version: {version} (expected {VERSION})"
-            )
-    
-    def _load_index(self):
-        """Load index from cache or file."""
-        if self._index_loaded:
-            return
-        
-        # Try cache first
-        if self._cache and self._cache_key:
-            cached = self._cache.get(self._cache_key)
-            if cached:
-                self._index_by_name = {e.name: e for e in cached}
-                self._index_loaded = True
-                return
-        
-        # Empty index case
-        if self.index_length == 0:
-            self._index_by_name = {}
-            self._index_loaded = True
-            return
-        
-        # Load from file
-        raw = self._read_range(self.index_start, self.index_length)
-        idx = {}
-        p = 0
-        
-        while p < len(raw):
-            # Read name_length (2 bytes)
-            if p + 2 > len(raw):
-                raise ValueError("Corrupted index: incomplete name length")
-            (name_len,) = struct.unpack("<H", raw[p : p + 2])
-            p += 2
-            
-            # Read name
-            if p + name_len > len(raw):
-                raise ValueError("Corrupted index: incomplete name")
-            name = raw[p : p + name_len].decode("utf-8")
-            p += name_len
-            
-            # Read fixed fields
-            if p + ENTRY_FIXED_SIZE > len(raw):
-                raise ValueError("Corrupted index: incomplete entry")
-            fixed = raw[p : p + ENTRY_FIXED_SIZE]
-            (
-                data_offset,
-                data_length,
-                meta_offset,
-                meta_length,
-                flags,
-            ) = ENTRY_FIXED_STRUCT.unpack(fixed)
-            p += ENTRY_FIXED_SIZE
-            
-            idx[name] = IndexEntry(
-                name=name,
-                data_offset=data_offset,
-                data_length=data_length,
-                meta_offset=meta_offset,
-                meta_length=meta_length,
-                flags=flags,
-            )
-        
-        self._index_by_name = idx
-        self._index_loaded = True
-        
-        # Store in cache
-        if self._cache and self._cache_key:
-            self._cache.set(self._cache_key, list(idx.values()))
-    
-    def _default_cache_key(self) -> str:
-        """Generate default cache key from path and mtime."""
-        mtime = os.path.getmtime(self.path)
-        return f"{self.path}/{mtime}"
-    
-    def _entries_for_names(self, names: List[str]) -> List[IndexEntry]:
-        """Filter index entries by names (sorted by data_offset)."""
-        entries = []
-        for name in names:
-            entry = self._index_by_name.get(name)
-            if entry:
-                entries.append(entry)
-        
-        return sorted(entries, key=lambda e: e.data_offset)
-    
-    def _group_entries(
-        self, 
-        entries: List[IndexEntry], 
-        max_gap_size: int
-    ) -> List[List[IndexEntry]]:
-        """Group adjacent entries for batch read."""
-        if not entries:
-            return []
-        
-        batches = []
-        current_batch = [entries[0]]
-        
-        for entry in entries[1:]:
-            prev_entry = current_batch[-1]
-            prev_end = prev_entry.data_offset + prev_entry.data_length
-            gap = entry.data_offset - prev_end
-            
-            if gap <= max_gap_size:
-                current_batch.append(entry)
-            else:
-                batches.append(current_batch)
-                current_batch = [entry]
-        
-        if current_batch:
-            batches.append(current_batch)
-        
-        return batches
-    
-    def _fetch_batches(
-        self, 
-        batches: List[List[IndexEntry]]
-    ) -> Dict[str, bytes]:
-        """Fetch multiple batches via single read per batch."""
-        results = {}
-        
-        for batch in batches:
-            if not batch:
-                continue
-            
-            # Calculate range for entire batch
-            first = batch[0]
-            last = batch[-1]
-            start_offset = first.data_offset
-            end_offset = last.data_offset + last.data_length
-            batch_length = end_offset - start_offset
-            
-            # Read entire batch
-            batch_data = self._read_range(start_offset, batch_length)
-            
-            # Split by individual files
-            for entry in batch:
-                file_start = entry.data_offset - start_offset
-                file_end = file_start + entry.data_length
-                results[entry.name] = batch_data[file_start:file_end]
-        
-        return results

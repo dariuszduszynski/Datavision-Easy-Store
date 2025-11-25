@@ -3,6 +3,13 @@ DES format constants, magic numbers, and flags.
 """
 import struct
 
+
+from __future__ import annotations  # ← Na początku każdego pliku
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from des.core.cache import IndexCacheBackend
+
 # Magic numbers
 HEADER_MAGIC = b"DESHEAD1"
 FOOTER_MAGIC = b"DESFOOT1"
