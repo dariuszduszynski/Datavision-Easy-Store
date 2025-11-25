@@ -14,6 +14,7 @@ setup(
     install_requires=[
         "boto3>=1.26.0",
         "psycopg2-binary>=2.9.0",
+        "asyncpg>=0.27.0",
         "redis>=4.5.0",
         "pydantic>=2.0.0",
         "fastapi>=0.103.0",
@@ -21,6 +22,7 @@ setup(
         "click>=8.1.0",
         "pyyaml>=6.0",
         "prometheus-client>=0.16.0",
+        "SQLAlchemy>=2.0.0",
     ],
     
     extras_require={
