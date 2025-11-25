@@ -1,60 +1,55 @@
 """
-S3DesReader with support for external big files.
+DesReader for local DES files (no S3).
 """
 import json
+import os
 import struct
-from typing import Dict, List, Optional, Sequence
-
-import boto3
+from typing import BinaryIO, Dict, List, Optional, Sequence
 
 from des.core.constants import *
 from des.core.models import IndexEntry, DesStats
 
 
-class S3DesReader:
+class DesReader:
     """
-    DES reader operating directly on S3 via Range GET.
-    Supports external big files in _bigFiles/ folder.
+    DES reader for local files.
+    
+    Supports external big files in _bigFiles/ folder (relative to DES file).
     """
     
     def __init__(
         self,
-        bucket: str,
-        key: str,
-        s3_client=None,
+        path: str,
         cache: Optional['IndexCacheBackend'] = None,
         cache_key: Optional[str] = None,
     ):
         """
         Args:
-            bucket: S3 bucket name
-            key: S3 key to DES archive (e.g. "2025-01-15/shard_00.des")
-            s3_client: Optional boto3 S3 client (creates default if None)
+            path: Path to DES file (e.g. "/data/2025-01-15/shard_00.des")
             cache: Optional cache backend for index
             cache_key: Optional cache key (auto-generated if None)
         """
-        self.bucket = bucket
-        self.key = key
-        self.s3 = s3_client or boto3.client("s3")
+        self.path = path
         self._cache = cache
         
-        # Parse base path for external files
-        # key: "2025-01-15/shard_00.des" → base_prefix: "2025-01-15"
-        self.base_prefix = "/".join(key.split("/")[:-1]) if "/" in key else ""
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"DES file not found: {path}")
         
-        # Get object metadata
-        head = self._get_head()
-        self.file_size = head["ContentLength"]
-        self._etag = head.get("ETag", "").strip('"')
+        # Base directory for external files
+        self.base_dir = os.path.dirname(path)
+        
+        # File handle
+        self._f: Optional[BinaryIO] = None
+        self.file_size = os.path.getsize(path)
         
         if self.file_size < MIN_DES_FILE_SIZE:
             raise ValueError(
-                f"Object too small to be valid DES: {self.file_size} bytes "
+                f"File too small to be valid DES: {self.file_size} bytes "
                 f"(min {MIN_DES_FILE_SIZE})"
             )
         
         # Load and parse footer
-        footer_bytes = self._range_get(self.file_size - FOOTER_SIZE, FOOTER_SIZE)
+        footer_bytes = self._read_range(self.file_size - FOOTER_SIZE, FOOTER_SIZE)
         self._parse_footer(footer_bytes)
         
         # Index state
@@ -62,13 +57,15 @@ class S3DesReader:
         self._index_by_name: Dict[str, IndexEntry] = {}
         self._cache_key = cache_key or self._default_cache_key()
     
-    def _get_head(self) -> dict:
-        """Get S3 object metadata (HEAD)."""
-        return self.s3.head_object(Bucket=self.bucket, Key=self.key)
+    def _get_file_handle(self) -> BinaryIO:
+        """Get or create file handle."""
+        if self._f is None or self._f.closed:
+            self._f = open(self.path, "rb")
+        return self._f
     
-    def _range_get(self, offset: int, length: int) -> bytes:
+    def _read_range(self, offset: int, length: int) -> bytes:
         """
-        Standard Range GET from DES archive.
+        Read bytes from file at offset.
         
         Args:
             offset: Start byte offset
@@ -77,17 +74,13 @@ class S3DesReader:
         Returns:
             bytes content
         """
-        end = offset + length - 1
-        resp = self.s3.get_object(
-            Bucket=self.bucket,
-            Key=self.key,
-            Range=f"bytes={offset}-{end}",
-        )
-        return resp["Body"].read()
+        f = self._get_file_handle()
+        f.seek(offset)
+        return f.read(length)
     
-    def _external_get(self, name: str) -> bytes:
+    def _read_external(self, name: str) -> bytes:
         """
-        GET entire external file from _bigFiles/.
+        Read entire external file from _bigFiles/.
         
         Args:
             name: Filename
@@ -98,16 +91,13 @@ class S3DesReader:
         Raises:
             KeyError: If external file not found
         """
-        external_key = f"{self.base_prefix}/{EXTERNAL_FILES_FOLDER}/{name}" if self.base_prefix else f"{EXTERNAL_FILES_FOLDER}/{name}"
+        external_path = os.path.join(self.base_dir, EXTERNAL_FILES_FOLDER, name)
         
-        try:
-            resp = self.s3.get_object(
-                Bucket=self.bucket,
-                Key=external_key
-            )
-            return resp["Body"].read()
-        except self.s3.exceptions.NoSuchKey:
-            raise KeyError(f"External file not found: {external_key}")
+        if not os.path.exists(external_path):
+            raise KeyError(f"External file not found: {external_path}")
+        
+        with open(external_path, "rb") as f:
+            return f.read()
     
     def get_file(self, name: str) -> bytes:
         """
@@ -127,12 +117,12 @@ class S3DesReader:
         if not entry:
             raise KeyError(f"File not found: {name}")
         
-        # Check external flag (fast path)
+        # Check external flag
         if entry.flags & FLAG_IS_EXTERNAL:
-            return self._external_get(entry.name)
+            return self._read_external(entry.name)
         
-        # Internal file - standard Range GET
-        return self._range_get(entry.data_offset, entry.data_length)
+        # Internal file - direct read
+        return self._read_range(entry.data_offset, entry.data_length)
     
     def get_files_batch(
         self,
@@ -140,10 +130,10 @@ class S3DesReader:
         max_gap_size: int = DEFAULT_MAX_GAP_SIZE,
     ) -> Dict[str, bytes]:
         """
-        Batch GET with support for external files.
+        Batch read with support for external files.
         
-        Adjacent internal files are merged into single Range GET if gap < max_gap_size.
-        External files are fetched individually.
+        Adjacent internal files are read in single operation if gap < max_gap_size.
+        External files are read individually.
         
         Args:
             names: Sequence of filenames to retrieve
@@ -176,17 +166,17 @@ class S3DesReader:
         
         results = {}
         
-        # 1. Fetch internal files (with batching)
+        # 1. Read internal files (with batching)
         if internal_names:
             entries = self._entries_for_names(internal_names)
             batches = self._group_entries(entries, max_gap_size)
             internal_results = self._fetch_batches(batches)
             results.update(internal_results)
         
-        # 2. Fetch external files (individually, could parallelize)
+        # 2. Read external files (individually)
         for name in external_names:
             try:
-                results[name] = self._external_get(name)
+                results[name] = self._read_external(name)
             except KeyError:
                 # Skip missing external files
                 pass
@@ -211,7 +201,7 @@ class S3DesReader:
         if not entry:
             raise KeyError(f"File not found: {name}")
         
-        raw = self._range_get(entry.meta_offset, entry.meta_length)
+        raw = self._read_range(entry.meta_offset, entry.meta_length)
         return json.loads(raw.decode("utf-8"))
     
     def list_files(self, include_external: bool = True) -> List[str]:
@@ -290,7 +280,20 @@ class S3DesReader:
         return name in self._index_by_name
     
     def __repr__(self) -> str:
-        return f"S3DesReader(bucket={self.bucket!r}, key={self.key!r}, files={self.file_count})"
+        return f"DesReader(path={self.path!r}, files={self.file_count})"
+    
+    def close(self):
+        """Close file handle."""
+        if self._f:
+            self._f.close()
+            self._f = None
+    
+    def __enter__(self):
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False
     
     # ========== Internal helper methods ==========
     
@@ -319,7 +322,7 @@ class S3DesReader:
             )
     
     def _load_index(self):
-        """Load index from cache or S3."""
+        """Load index from cache or file."""
         if self._index_loaded:
             return
         
@@ -337,8 +340,8 @@ class S3DesReader:
             self._index_loaded = True
             return
         
-        # Load from S3
-        raw = self._range_get(self.index_start, self.index_length)
+        # Load from file
+        raw = self._read_range(self.index_start, self.index_length)
         idx = {}
         p = 0
         
@@ -385,26 +388,18 @@ class S3DesReader:
             self._cache.set(self._cache_key, list(idx.values()))
     
     def _default_cache_key(self) -> str:
-        """Generate default cache key from bucket/key/etag."""
-        return f"{self.bucket}/{self.key}/{self._etag}"
+        """Generate default cache key from path and mtime."""
+        mtime = os.path.getmtime(self.path)
+        return f"{self.path}/{mtime}"
     
     def _entries_for_names(self, names: List[str]) -> List[IndexEntry]:
-        """
-        Filter index entries by names.
-        
-        Args:
-            names: List of filenames
-        
-        Returns:
-            List of IndexEntry (sorted by data_offset)
-        """
+        """Filter index entries by names (sorted by data_offset)."""
         entries = []
         for name in names:
             entry = self._index_by_name.get(name)
             if entry:
                 entries.append(entry)
         
-        # Sort by data_offset for efficient batching
         return sorted(entries, key=lambda e: e.data_offset)
     
     def _group_entries(
@@ -412,18 +407,7 @@ class S3DesReader:
         entries: List[IndexEntry], 
         max_gap_size: int
     ) -> List[List[IndexEntry]]:
-        """
-        Group adjacent entries for batch Range GET.
-        
-        Files are grouped if gap between them is < max_gap_size.
-        
-        Args:
-            entries: List of IndexEntry (must be sorted by data_offset)
-            max_gap_size: Maximum gap to merge (bytes)
-        
-        Returns:
-            List of groups (each group is List[IndexEntry])
-        """
+        """Group adjacent entries for batch read."""
         if not entries:
             return []
         
@@ -436,14 +420,11 @@ class S3DesReader:
             gap = entry.data_offset - prev_end
             
             if gap <= max_gap_size:
-                # Merge into current batch
                 current_batch.append(entry)
             else:
-                # Start new batch
                 batches.append(current_batch)
                 current_batch = [entry]
         
-        # Add last batch
         if current_batch:
             batches.append(current_batch)
         
@@ -453,17 +434,7 @@ class S3DesReader:
         self, 
         batches: List[List[IndexEntry]]
     ) -> Dict[str, bytes]:
-        """
-        Fetch multiple batches via Range GET.
-        
-        Each batch is fetched as single Range GET, then split by offsets.
-        
-        Args:
-            batches: List of entry groups
-        
-        Returns:
-            Dict mapping filename to content
-        """
+        """Fetch multiple batches via single read per batch."""
         results = {}
         
         for batch in batches:
@@ -477,8 +448,8 @@ class S3DesReader:
             end_offset = last.data_offset + last.data_length
             batch_length = end_offset - start_offset
             
-            # Fetch entire batch
-            batch_data = self._range_get(start_offset, batch_length)
+            # Read entire batch
+            batch_data = self._read_range(start_offset, batch_length)
             
             # Split by individual files
             for entry in batch:
