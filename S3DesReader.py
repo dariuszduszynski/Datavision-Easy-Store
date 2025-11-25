@@ -1,6 +1,6 @@
 import json
 import struct
-from typing import Dict, Optional, Sequence
+from typing import Dict, List, Optional, Sequence
 
 import boto3
 
@@ -75,35 +75,46 @@ class S3DesReader:
 
         self._load_index()
 
-        seen = set()
-        unique_names = []
-        for name in names:
-            if name not in seen:
-                unique_names.append(name)
-                seen.add(name)
-
-        entries = [self._index_by_name.get(name) for name in unique_names]
-        entries = [e for e in entries if e is not None]
+        entries = self._entries_for_names(names)
         if not entries:
             return {}
 
-        entries.sort(key=lambda e: e.data_offset)
+        batches = self._group_entries(entries, max_gap_size)
+        return self._fetch_batches(batches)
 
-        batches = []
-        current_batch = [entries[0]]
+    def _entries_for_names(self, names: Sequence[str]) -> List[IndexEntry]:
+        seen = set()
+        result: List[IndexEntry] = []
+        for name in names:
+            if name in seen:
+                continue
+            seen.add(name)
+            entry = self._index_by_name.get(name)
+            if entry:
+                result.append(entry)
+        result.sort(key=lambda e: e.data_offset)
+        return result
+
+    def _group_entries(
+        self, entries: List[IndexEntry], max_gap_size: int
+    ) -> List[List[IndexEntry]]:
+        if not entries:
+            return []
+        batches: List[List[IndexEntry]] = [[entries[0]]]
         for entry in entries[1:]:
-            prev = current_batch[-1]
+            prev = batches[-1][-1]
             prev_end = prev.data_offset + prev.data_length
-            gap = entry.data_offset - prev_end
-            if gap <= max_gap_size:
-                current_batch.append(entry)
+            if entry.data_offset - prev_end <= max_gap_size:
+                batches[-1].append(entry)
             else:
-                batches.append(current_batch)
-                current_batch = [entry]
-        batches.append(current_batch)
+                batches.append([entry])
+        return batches
 
+    def _fetch_batches(self, batches: List[List[IndexEntry]]) -> Dict[str, bytes]:
         results: Dict[str, bytes] = {}
         for batch in batches:
+            if not batch:
+                continue
             start = batch[0].data_offset
             end = batch[-1].data_offset + batch[-1].data_length
             blob = self._range_get(start, end - start)
@@ -111,7 +122,6 @@ class S3DesReader:
                 rel_start = entry.data_offset - start
                 rel_end = rel_start + entry.data_length
                 results[entry.name] = blob[rel_start:rel_end]
-
         return results
 
     # ----------------------------------------------------------
