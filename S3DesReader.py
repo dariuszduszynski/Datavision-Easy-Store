@@ -60,27 +60,7 @@ class S3DesReader:
         )
         return resp["Body"].read()
 
-    def get_files_batch(
-        self,
-        names: Sequence[str],
-        max_gap_size: int = 1024 * 1024,
-    ) -> Dict[str, bytes]:
-        """
-        Fetch multiple files with minimal S3 requests.
-        Files that are close to each other (gap <= max_gap_size) are fetched in one range.
-        Missing names are ignored.
-        """
-        if max_gap_size < 0:
-            raise ValueError("max_gap_size must be non-negative")
 
-        self._load_index()
-
-        entries = self._entries_for_names(names)
-        if not entries:
-            return {}
-
-        batches = self._group_entries(entries, max_gap_size)
-        return self._fetch_batches(batches)
 
     def _entries_for_names(self, names: Sequence[str]) -> List[IndexEntry]:
         seen = set()
@@ -210,6 +190,28 @@ class S3DesReader:
         if not entry:
             raise KeyError(name)
         return self._range_get(entry.data_offset, entry.data_length)
+    
+    def get_files_batch(
+        self,
+        names: Sequence[str],
+        max_gap_size: int = 1024 * 1024,
+    ) -> Dict[str, bytes]:
+        """
+        Fetch multiple files with minimal S3 requests.
+        Files that are close to each other (gap <= max_gap_size) are fetched in one range.
+        Missing names are ignored.
+        """
+        if max_gap_size < 0:
+            raise ValueError("max_gap_size must be non-negative")
+
+        self._load_index()
+
+        entries = self._entries_for_names(names)
+        if not entries:
+            return {}
+
+        batches = self._group_entries(entries, max_gap_size)
+        return self._fetch_batches(batches)
 
     def get_meta(self, name: str) -> dict:
         self._load_index()
