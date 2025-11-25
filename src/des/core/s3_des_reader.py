@@ -1,60 +1,58 @@
+"""
+S3DesReader with support for external big files.
+"""
 import json
 import struct
 from typing import Dict, List, Optional, Sequence
 
 import boto3
 
-from des_core import (
-    ENTRY_FIXED_STRUCT,
-    FOOTER_SIZE,
-    FOOTER_STRUCT,
-    IndexCacheBackend,
-    IndexEntry,
-    VERSION,
-)
+from des.core.constants import *
+from des.core.models import IndexEntry
 
 
 class S3DesReader:
     """
     DES reader operating directly on S3 via Range GET.
-    No local temp files. Pure streaming.
+    Supports external big files in _bigFiles/ folder.
     """
-
+    
     def __init__(
         self,
         bucket: str,
         key: str,
         s3_client=None,
-        cache: Optional[IndexCacheBackend] = None,
+        cache: Optional['IndexCacheBackend'] = None,
         cache_key: Optional[str] = None,
     ):
         self.bucket = bucket
         self.key = key
         self.s3 = s3_client or boto3.client("s3")
         self._cache = cache
-
+        
+        # Parse base path for external files
+        # key: "2025-01-15/shard_00.des" → base_prefix: "2025-01-15"
+        self.base_prefix = "/".join(key.split("/")[:-1])
+        
         head = self._get_head()
         self.file_size = head["ContentLength"]
         self._etag = head.get("ETag") or ""
-
+        
         if self.file_size < FOOTER_SIZE:
             raise ValueError("Object too small to be a valid DES file")
-
+        
         footer_bytes = self._range_get(self.file_size - FOOTER_SIZE, FOOTER_SIZE)
         self._parse_footer(footer_bytes)
-
+        
         self._index_loaded = False
         self._index_by_name: Dict[str, IndexEntry] = {}
         self._cache_key = cache_key or self._default_cache_key()
-
-    # ----------------------------------------------------------
-    # S3 helpers
-    # ----------------------------------------------------------
-
+    
     def _get_head(self) -> dict:
         return self.s3.head_object(Bucket=self.bucket, Key=self.key)
-
+    
     def _range_get(self, offset: int, length: int) -> bytes:
+        """Standard Range GET from DES archive."""
         end = offset + length - 1
         resp = self.s3.get_object(
             Bucket=self.bucket,
@@ -62,56 +60,147 @@ class S3DesReader:
             Range=f"bytes={offset}-{end}",
         )
         return resp["Body"].read()
-
-
-
-    def _entries_for_names(self, names: Sequence[str]) -> List[IndexEntry]:
-        seen = set()
-        result: List[IndexEntry] = []
+    
+    def _external_get(self, name: str) -> bytes:
+        """
+        GET całego pliku z _bigFiles/.
+        """
+        external_key = f"{self.base_prefix}/_bigFiles/{name}"
+        
+        try:
+            resp = self.s3.get_object(
+                Bucket=self.bucket,
+                Key=external_key
+            )
+            return resp["Body"].read()
+        except self.s3.exceptions.NoSuchKey:
+            raise KeyError(f"External file not found: {external_key}")
+    
+    def get_file(self, name: str) -> bytes:
+        """
+        Pobierz plik z DES lub external storage.
+        """
+        self._load_index()
+        entry = self._index_by_name.get(name)
+        if not entry:
+            raise KeyError(f"File not found: {name}")
+        
+        # Sprawdzamy flagę (SZYBKA ŚCIEŻKA)
+        if entry.flags & FLAG_IS_EXTERNAL:
+            # External file
+            return self._external_get(entry.name)
+        
+        # Internal file - standardowy Range GET
+        return self._range_get(entry.data_offset, entry.data_length)
+    
+    def get_files_batch(
+        self,
+        names: Sequence[str],
+        max_gap_size: int = 1024 * 1024,
+    ) -> Dict[str, bytes]:
+        """
+        Batch GET z obsługą external files.
+        """
+        if isinstance(names, str):
+            raise TypeError("names must be a sequence of file names")
+        
+        self._load_index()
+        
+        # Rozdziel na internal i external
+        internal_names = []
+        external_names = []
+        
         for name in names:
-            if name in seen:
-                continue
-            seen.add(name)
             entry = self._index_by_name.get(name)
-            if entry:
-                result.append(entry)
-        result.sort(key=lambda e: e.data_offset)
-        return result
-
-    def _group_entries(
-        self, entries: List[IndexEntry], max_gap_size: int
-    ) -> List[List[IndexEntry]]:
-        if not entries:
-            return []
-        batches: List[List[IndexEntry]] = [[entries[0]]]
-        for entry in entries[1:]:
-            prev = batches[-1][-1]
-            prev_end = prev.data_offset + prev.data_length
-            if entry.data_offset - prev_end <= max_gap_size:
-                batches[-1].append(entry)
-            else:
-                batches.append([entry])
-        return batches
-
-    def _fetch_batches(self, batches: List[List[IndexEntry]]) -> Dict[str, bytes]:
-        results: Dict[str, bytes] = {}
-        for batch in batches:
-            if not batch:
+            if not entry:
                 continue
-            start = batch[0].data_offset
-            end = batch[-1].data_offset + batch[-1].data_length
-            blob = self._range_get(start, end - start)
-            for entry in batch:
-                rel_start = entry.data_offset - start
-                rel_end = rel_start + entry.data_length
-                results[entry.name] = blob[rel_start:rel_end]
+            
+            if entry.flags & FLAG_IS_EXTERNAL:
+                external_names.append(name)
+            else:
+                internal_names.append(name)
+        
+        results = {}
+        
+        # 1. Fetch internal files (batching z max_gap_size)
+        if internal_names:
+            entries = self._entries_for_names(internal_names)
+            batches = self._group_entries(entries, max_gap_size)
+            internal_results = self._fetch_batches(batches)
+            results.update(internal_results)
+        
+        # 2. Fetch external files (pojedynczo, można zrównoleglić)
+        for name in external_names:
+            try:
+                results[name] = self._external_get(name)
+            except KeyError:
+                # Skip missing external files
+                pass
+        
         return results
-
-    # ----------------------------------------------------------
-    # Footer + index
-    # ----------------------------------------------------------
-
+    
+    def get_meta(self, name: str) -> dict:
+        """
+        Pobierz metadane (zawsze z DES, nawet dla external).
+        """
+        self._load_index()
+        entry = self._index_by_name.get(name)
+        if not entry:
+            raise KeyError(f"File not found: {name}")
+        
+        raw = self._range_get(entry.meta_offset, entry.meta_length)
+        return json.loads(raw.decode("utf-8"))
+    
+    def list_files(self, include_external: bool = True) -> List[str]:
+        """
+        Lista wszystkich plików.
+        
+        Args:
+            include_external: Czy uwzględnić external files
+        """
+        self._load_index()
+        
+        if include_external:
+            return list(self._index_by_name.keys())
+        
+        # Only internal
+        return [
+            name for name, entry in self._index_by_name.items()
+            if not (entry.flags & FLAG_IS_EXTERNAL)
+        ]
+    
+    def get_stats(self) -> dict:
+        """
+        Statystyki archiwum.
+        """
+        self._load_index()
+        
+        internal_count = 0
+        external_count = 0
+        internal_size = 0
+        external_size = 0
+        
+        for entry in self._index_by_name.values():
+            if entry.flags & FLAG_IS_EXTERNAL:
+                external_count += 1
+                external_size += entry.data_length
+            else:
+                internal_count += 1
+                internal_size += entry.data_length
+        
+        return {
+            'total_files': len(self._index_by_name),
+            'internal_files': internal_count,
+            'external_files': external_count,
+            'internal_size_bytes': internal_size,
+            'external_size_bytes': external_size,
+            'archive_size_bytes': self.file_size,
+        }
+    
+    # ... reszta metod bez zmian (_load_index, etc.)
+    
     def _parse_footer(self, data: bytes):
+        """Parse footer (bez zmian)."""
         (
             magic,
             version,
@@ -124,41 +213,39 @@ class S3DesReader:
             self.index_length,
             self.file_count,
         ) = FOOTER_STRUCT.unpack(data)
-
-        if magic != b"DESFOOT1":
+        
+        if magic != FOOTER_MAGIC:
             raise ValueError("Invalid DES footer magic")
         if version != VERSION:
             raise ValueError(f"Unsupported DES version: {version}")
-
-    def _default_cache_key(self) -> str:
-        return f"DES_S3:{self.bucket}:{self.key}:{self.file_size}:{self._etag}:{VERSION}"
-
+    
     def _load_index(self):
+        """Load index z cache lub S3 (bez zmian)."""
         if self._index_loaded:
             return
-
+        
         if self._cache and self._cache_key:
             cached = self._cache.get(self._cache_key)
             if cached:
                 self._index_by_name = {e.name: e for e in cached}
                 self._index_loaded = True
                 return
-
+        
         if self.index_length == 0:
             self._index_by_name = {}
             self._index_loaded = True
             return
-
+        
         raw = self._range_get(self.index_start, self.index_length)
         p = 0
         idx = {}
-
+        
         while p < len(raw):
             (name_len,) = struct.unpack("<H", raw[p : p + 2])
             p += 2
             name = raw[p : p + name_len].decode("utf-8")
             p += name_len
-
+            
             fixed = raw[p : p + ENTRY_FIXED_STRUCT.size]
             (
                 data_offset,
@@ -168,7 +255,7 @@ class S3DesReader:
                 flags,
             ) = ENTRY_FIXED_STRUCT.unpack(fixed)
             p += ENTRY_FIXED_STRUCT.size
-
+            
             idx[name] = IndexEntry(
                 name=name,
                 data_offset=data_offset,
@@ -177,65 +264,9 @@ class S3DesReader:
                 meta_length=meta_length,
                 flags=flags,
             )
-
+        
         self._index_by_name = idx
         self._index_loaded = True
-
+        
         if self._cache and self._cache_key:
             self._cache.set(self._cache_key, list(idx.values()))
-
-    # ----------------------------------------------------------
-    # Public API
-    # ----------------------------------------------------------
-
-    def list_files(self):
-        self._load_index()
-        return list(self._index_by_name.keys())
-
-    def get_file(self, name: str) -> bytes:
-        self._load_index()
-        entry = self._index_by_name.get(name)
-        if not entry:
-            raise KeyError(name)
-        return self._range_get(entry.data_offset, entry.data_length)
-    
-    def get_files_batch(
-        self,
-        names: Sequence[str],
-        max_gap_size: int = 1024 * 1024,
-    ) -> Dict[str, bytes]:
-        """
-        Fetch multiple files with minimal S3 requests.
-        Files that are close to each other (gap <= max_gap_size) are fetched in one range.
-        Missing names are ignored.
-        """
-        if isinstance(names, str):
-            raise TypeError("names must be a sequence of file names, not a single string")
-        if max_gap_size < 0:
-            raise ValueError("max_gap_size must be non-negative")
-
-        self._load_index()
-
-        entries = self._entries_for_names(names)
-        if not entries:
-            return {}
-
-        batches = self._group_entries(entries, max_gap_size)
-        return self._fetch_batches(batches)
-
-    def get_meta(self, name: str) -> dict:
-        self._load_index()
-        entry = self._index_by_name.get(name)
-        if not entry:
-            raise KeyError(name)
-
-        raw = self._range_get(entry.meta_offset, entry.meta_length)
-        return json.loads(raw.decode("utf-8"))
-
-    def get_index(self):
-        self._load_index()
-        return list(self._index_by_name.values())
-
-    def __contains__(self, name):
-        self._load_index()
-        return name in self._index_by_name

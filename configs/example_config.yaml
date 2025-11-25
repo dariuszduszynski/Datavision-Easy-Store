@@ -1,0 +1,32 @@
+migration:
+  n_bits: 6
+  num_pods: 16
+  batch_size: 1000
+  max_workers: 8
+  
+  # Big file handling
+  big_file_threshold: 104857600  # 100 MB
+  
+  # S3 buckets
+  source_bucket: source-files
+  archive_bucket: des-archives
+```
+
+---
+
+## 📊 Struktura S3 po implementacji:
+```
+s3://des-archives/
+├── 2025-01-15/
+│   ├── shard_00.des           # 10 MB - tylko małe pliki + index
+│   ├── shard_01.des           # 8 MB
+│   ├── shard_02.des           # 12 MB
+│   └── _bigFiles/             # Duże pliki osobno
+│       ├── SF_20250115_ABC123 # 150 MB
+│       ├── SF_20250115_DEF456 # 200 MB
+│       └── SF_20250115_GHI789 # 500 MB
+│
+├── 2025-01-16/
+│   ├── shard_00.des
+│   └── _bigFiles/
+│       └── SF_20250116_JKL012
