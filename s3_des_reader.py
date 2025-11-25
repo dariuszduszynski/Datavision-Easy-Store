@@ -4,7 +4,7 @@ from typing import Dict, List, Optional, Sequence
 
 import boto3
 
-from dv_easystore import (
+from des_core import (
     ENTRY_FIXED_STRUCT,
     FOOTER_SIZE,
     FOOTER_STRUCT,
