@@ -30,6 +30,7 @@ class SnowflakeNameGenerator:
             raise ValueError("node_id must be in [0, 255]")
         if not (1 <= self.config.wrap_bits <= 32):
             raise ValueError("wrap_bits must be in [1, 32]")
+        self._validate_prefix(self.config.prefix)
 
         self._lock = threading.Lock()
         self._last_ms = -1
@@ -95,3 +96,15 @@ class SnowflakeNameGenerator:
         cc_hex = f"{cc:02X}"
 
         return f"{self.config.prefix}_{day_str}_({f_hex}_{cc_hex})"
+
+    @staticmethod
+    def _validate_prefix(prefix: str) -> None:
+        """
+        Prefix może zawierać tylko litery i cyfry ASCII.
+        """
+        if not prefix:
+            raise ValueError("prefix must be non-empty")
+        if not prefix.isascii():
+            raise ValueError("prefix must contain only ASCII characters")
+        if not prefix.isalnum():
+            raise ValueError("prefix may only use letters or digits")
