@@ -1,7 +1,7 @@
 """
 Multi-shard packer with big file support.
 """
-from des.core.writer import DesWriter
+from src.des.core.des_writer import DesWriter
 from des.core.constants import DEFAULT_BIG_FILE_THRESHOLD
 
 class MultiShardPacker:
