@@ -46,7 +46,7 @@ Thanks to the footer, a reader can locate the index using **one final range requ
 ### Writing a DES file
 
 ```python
-from des_core import DesWriter
+from des import DesWriter
 
 with DesWriter("2025-11-25.des") as w:
     w.add_file("report.pdf", pdf_bytes, meta={"mime": "application/pdf"})
@@ -56,7 +56,7 @@ with DesWriter("2025-11-25.des") as w:
 ### Reading from a DES file
 
 ```python
-from des_core import DesReader, InMemoryIndexCache
+from des import DesReader, InMemoryIndexCache
 
 r = DesReader("2025-11-25.des", cache=InMemoryIndexCache())
 
@@ -69,7 +69,7 @@ index = r.get_index()
 ### S3 range reader + batch fetch
 
 ```python
-from s3_des_reader import S3DesReader, InMemoryIndexCache
+from des import S3DesReader, InMemoryIndexCache
 
 s3r = S3DesReader("my-bucket", "2025-11-25.des", cache=InMemoryIndexCache())
 batch = s3r.get_files_batch(["report.pdf", "log.txt"])

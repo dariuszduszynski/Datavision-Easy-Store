@@ -4,8 +4,8 @@ from datetime import date
 from pathlib import Path
 from typing import Optional, Tuple, Iterable
 
-from .des_core import DesWriter
-from .snowflake_name import SnowflakeNameGenerator, SnowflakeNameConfig
+from des.core.des_core import DesWriter
+from des.utils.snowflake_name import SnowflakeNameGenerator, SnowflakeNameConfig
 
 
 def shard_from_name(name: str, shard_bits: int) -> int:

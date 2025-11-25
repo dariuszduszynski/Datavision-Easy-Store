@@ -15,7 +15,7 @@ Docelowo:
 from datetime import date
 from pathlib import Path
 
-from .daily_sharded_store import DailyShardedDesStore
+from des.packer.daily_sharded_store import DailyShardedDesStore
 
 
 def pack_buffer_directory(
