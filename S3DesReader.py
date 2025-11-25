@@ -1,14 +1,15 @@
 import json
 import struct
-from typing import Optional
+from typing import Dict, Optional, Sequence
+
 import boto3
 
 from dv_easystore import (
-    FOOTER_STRUCT,
-    FOOTER_SIZE,
     ENTRY_FIXED_STRUCT,
-    IndexEntry,
+    FOOTER_SIZE,
+    FOOTER_STRUCT,
     IndexCacheBackend,
+    IndexEntry,
     VERSION,
 )
 
@@ -32,18 +33,15 @@ class S3DesReader:
         self.s3 = s3_client or boto3.client("s3")
         self._cache = cache
 
-        # Read footer (always last FOOTER_SIZE bytes)
         head = self._get_head()
         self.file_size = head["ContentLength"]
         self._etag = head.get("ETag") or ""
 
-        footer_bytes = self._range_get(
-            self.file_size - FOOTER_SIZE, FOOTER_SIZE
-        )
+        footer_bytes = self._range_get(self.file_size - FOOTER_SIZE, FOOTER_SIZE)
         self._parse_footer(footer_bytes)
 
         self._index_loaded = False
-        self._index_by_name = {}
+        self._index_by_name: Dict[str, IndexEntry] = {}
         self._cache_key = cache_key or self._default_cache_key()
 
     # ----------------------------------------------------------
@@ -62,79 +60,60 @@ class S3DesReader:
         )
         return resp["Body"].read()
 
-    def get_files_batch(self, names: list[str], max_gap_size: int = 1024 * 1024) -> dict[str, bytes]:
+    def get_files_batch(
+        self,
+        names: Sequence[str],
+        max_gap_size: int = 1024 * 1024,
+    ) -> Dict[str, bytes]:
         """
-        Pobiera wiele plików, optymalizując liczbę zapytań do S3.
-        Jeśli pliki leżą blisko siebie (luka < max_gap_size), są pobierane jednym strzałem.
-        
-        :param names: lista nazw plików do pobrania
-        :param max_gap_size: maksymalna wielkość luki (w bajtach), którą jesteśmy w stanie
-                             pobrać "na darmo", aby uniknąć kolejnego requestu HTTP.
-                             Domyślnie 1MB.
+        Fetch multiple files with minimal S3 requests.
+        Files that are close to each other (gap <= max_gap_size) are fetched in one range.
+        Missing names are ignored.
         """
+        if max_gap_size < 0:
+            raise ValueError("max_gap_size must be non-negative")
+
         self._load_index()
-        
-        # 1. Znajdź wpisy i posortuj je po offsecie w pliku
-        entries = []
+
+        seen = set()
+        unique_names = []
         for name in names:
-            entry = self._index_by_name.get(name)
-            if entry:
-                entries.append(entry)
-            # Opcjonalnie: loguj warning, jeśli plik nie istnieje
-        
+            if name not in seen:
+                unique_names.append(name)
+                seen.add(name)
+
+        entries = [self._index_by_name.get(name) for name in unique_names]
+        entries = [e for e in entries if e is not None]
         if not entries:
             return {}
 
-        # Sortujemy, żeby wykrywać sąsiedztwo
         entries.sort(key=lambda e: e.data_offset)
 
-        results = {}
-        batch_start_idx = 0
-        
-        # 2. Grupuj wpisy w "wsady" (batches)
-        while batch_start_idx < len(entries):
-            current_batch = [entries[batch_start_idx]]
-            
-            # Próbujemy dokleić kolejne pliki do tego batcha
-            next_idx = batch_start_idx + 1
-            while next_idx < len(entries):
-                prev_entry = current_batch[-1]
-                curr_entry = entries[next_idx]
-                
-                # Oblicz koniec poprzedniego i początek następnego
-                prev_end = prev_entry.data_offset + prev_entry.data_length
-                gap = curr_entry.data_offset - prev_end
-                
-                # Jeśli luka jest akceptowalna, dodajemy do batcha
-                if gap <= max_gap_size:
-                    current_batch.append(curr_entry)
-                    next_idx += 1
-                else:
-                    # Luka za duża, kończymy ten batch
-                    break
-            
-            # 3. Wykonaj pobranie dla wyznaczonego batcha
-            batch_start_offset = current_batch[0].data_offset
-            last_entry = current_batch[-1]
-            batch_end_offset = last_entry.data_offset + last_entry.data_length
-            total_length = batch_end_offset - batch_start_offset
-            
-            # Jeden duży Range Request
-            raw_batch_data = self._range_get(batch_start_offset, total_length)
-            
-            # 4. Pokrój pobrany blob na poszczególne pliki
-            for entry in current_batch:
-                # Oblicz relatywny offset wewnątrz pobranego bloku
-                rel_start = entry.data_offset - batch_start_offset
+        batches = []
+        current_batch = [entries[0]]
+        for entry in entries[1:]:
+            prev = current_batch[-1]
+            prev_end = prev.data_offset + prev.data_length
+            gap = entry.data_offset - prev_end
+            if gap <= max_gap_size:
+                current_batch.append(entry)
+            else:
+                batches.append(current_batch)
+                current_batch = [entry]
+        batches.append(current_batch)
+
+        results: Dict[str, bytes] = {}
+        for batch in batches:
+            start = batch[0].data_offset
+            end = batch[-1].data_offset + batch[-1].data_length
+            blob = self._range_get(start, end - start)
+            for entry in batch:
+                rel_start = entry.data_offset - start
                 rel_end = rel_start + entry.data_length
-                results[entry.name] = raw_batch_data[rel_start:rel_end]
-            
-            # Przesuń wskaźnik na początek nowej grupy
-            batch_start_idx = next_idx
+                results[entry.name] = blob[rel_start:rel_end]
 
         return results
-    
-    
+
     # ----------------------------------------------------------
     # Footer + index
     # ----------------------------------------------------------
