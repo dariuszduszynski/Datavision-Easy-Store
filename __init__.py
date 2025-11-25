@@ -35,7 +35,7 @@ from .des_core import (
 )
 
 # S3 range reader
-from .s3_des_reader import S3DesReader
+from .src.des.core.s3_des_reader import S3DesReader
 
 # Snowflake-like name generator
 from .snowflake_name import (
