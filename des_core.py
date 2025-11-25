@@ -2,6 +2,7 @@ import io
 import json
 import os
 import struct
+import gzip
 from dataclasses import dataclass
 from typing import BinaryIO, Dict, List, Optional
 
@@ -42,17 +43,18 @@ class InMemoryIndexCache(IndexCacheBackend):
     Prosty cache w pamięci procesu.
     """
 
-    def __init__(self):
-        self._store: Dict[str, List["IndexEntry"]] = {}
+    def __init__(self, compress: bool = False):
+        self._store: Dict[str, bytes] = {}
+        self.compress = compress
 
     def get(self, key: str) -> Optional[List["IndexEntry"]]:
-        cached = self._store.get(key)
-        if cached is None:
+        raw = self._store.get(key)
+        if raw is None:
             return None
-        return [IndexEntry(**entry.__dict__) for entry in cached]
+        return _decode_index_cache(raw, compressed=self.compress)
 
     def set(self, key: str, entries: List["IndexEntry"]) -> None:
-        self._store[key] = [IndexEntry(**entry.__dict__) for entry in entries]
+        self._store[key] = _encode_index_cache(entries, compress=self.compress)
 
 
 class RedisIndexCache(IndexCacheBackend):
@@ -61,24 +63,19 @@ class RedisIndexCache(IndexCacheBackend):
     Wartość trzymana jako JSON (lista słowników).
     """
 
-    def __init__(self, client, ttl_seconds: Optional[int] = None):
+    def __init__(self, client, ttl_seconds: Optional[int] = None, compress: bool = True):
         self.client = client
         self.ttl_seconds = ttl_seconds
+        self.compress = compress
 
     def get(self, key: str) -> Optional[List["IndexEntry"]]:
         raw = self.client.get(key)
         if not raw:
             return None
-        if isinstance(raw, bytes):
-            raw = raw.decode("utf-8")
-        try:
-            payload = json.loads(raw)
-        except Exception:
-            return None
-        return _deserialize_index_entries(payload)
+        return _decode_index_cache(raw, compressed=self.compress)
 
     def set(self, key: str, entries: List["IndexEntry"]) -> None:
-        payload = json.dumps(_serialize_index_entries(entries), separators=(",", ":"))
+        payload = _encode_index_cache(entries, compress=self.compress)
         if self.ttl_seconds:
             self.client.set(key, payload, ex=self.ttl_seconds)
         else:
@@ -126,6 +123,30 @@ def _deserialize_index_entries(items: List[dict]) -> List[IndexEntry]:
         except KeyError:
             continue
     return result
+
+
+def _encode_index_cache(entries: List[IndexEntry], compress: bool) -> bytes:
+    payload = json.dumps(_serialize_index_entries(entries), separators=(",", ":")).encode("utf-8")
+    return gzip.compress(payload) if compress else payload
+
+
+def _decode_index_cache(raw: bytes | str, compressed: bool) -> Optional[List[IndexEntry]]:
+    if raw is None:
+        return None
+    if isinstance(raw, str):
+        raw_bytes = raw.encode("utf-8")
+    else:
+        raw_bytes = raw
+    if compressed:
+        try:
+            raw_bytes = gzip.decompress(raw_bytes)
+        except Exception:
+            return None
+    try:
+        payload = json.loads(raw_bytes.decode("utf-8"))
+    except Exception:
+        return None
+    return _deserialize_index_entries(payload)
 
 
 # --- Writer ---

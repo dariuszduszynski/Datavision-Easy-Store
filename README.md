@@ -101,8 +101,8 @@ batch = s3r.get_files_batch(["report.pdf", "log.txt"])
 
 ### Cache backends
 
-- `InMemoryIndexCache` — simple in-process cache.
-- `RedisIndexCache` — adapter for a Redis client (optional dependency), JSON-serialized index; TTL optional.
+- `InMemoryIndexCache(compress=False)` — simple in-process cache; can gzip JSON to reduce footprint.
+- `RedisIndexCache(client, ttl_seconds=None, compress=True)` — adapter for a Redis client (optional dependency), JSON-serialized index; gzip on by default to shrink payload. TTL optional.
 
 ### Daily sharded store
 
@@ -144,4 +144,4 @@ v1 is append-only. Logical deletion (`flags`) and compaction are planned for v2.
 
 ## License
 
-MIT (or choose your preferred license).
+MIT.

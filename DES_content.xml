@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xmi:XMI
+    xmi:version="2.1"
+    xmlns:xmi="http://schema.omg.org/spec/XMI/2.1"
+    xmlns:uml="http://www.eclipse.org/uml2/3.0.0/UML">
+
+  <uml:Model xmi:id="model_DES" name="Datavision Easy Store - C4 Context">
+
+    <!-- ==== ELEMENTY (C4: System, External Systems, Person) ==== -->
+
+    <!-- Główny system -->
+    <packagedElement xmi:type="uml:Component" xmi:id="comp_DES" name="DES Archival Service"/>
+
+    <!-- Systemy klienckie -->
+    <packagedElement xmi:type="uml:Component" xmi:id="comp_ClientSystems" name="Client Systems"/>
+
+    <!-- Bufor S3/HCP -->
+    <packagedElement xmi:type="uml:Component" xmi:id="comp_BufferS3" name="Buffer Object Storage (S3/HCP)"/>
+
+    <!-- Archiwum S3/HCP -->
+    <packagedElement xmi:type="uml:Component" xmi:id="comp_ArchiveS3" name="Archive Object Storage (S3/HCP)"/>
+
+    <!-- Baza metadanych -->
+    <packagedElement xmi:type="uml:Component" xmi:id="comp_MetadataDB" name="Metadata Database"/>
+
+    <!-- Aktor – administrator / operations -->
+    <packagedElement xmi:type="uml:Actor" xmi:id="actor_Operations" name="Operations / Admin"/>
+
+    <!-- ==== RELACJE (C4: relationships) ==== -->
+
+    <!-- Client Systems -> DES Archival Service -->
+    <packagedElement xmi:type="uml:CommunicationPath"
+                     xmi:id="rel_Client_DES"
+                     name="Submit file references">
+      <ownedEnd xmi:id="end_Client_DES_client"
+                type="comp_ClientSystems"
+                name="client"/>
+      <ownedEnd xmi:id="end_Client_DES_des"
+                type="comp_DES"
+                name="des"/>
+    </packagedElement>
+
+    <!-- DES <-> Buffer Object Storage (S3/HCP) -->
+    <packagedElement xmi:type="uml:CommunicationPath"
+                     xmi:id="rel_DES_Buffer"
+                     name="Read files from buffer">
+      <ownedEnd xmi:id="end_DES_Buffer_des"
+                type="comp_DES"
+                name="des"/>
+      <ownedEnd xmi:id="end_DES_Buffer_buffer"
+                type="comp_BufferS3"
+                name="buffer"/>
+    </packagedElement>
+
+    <!-- DES <-> Archive Object Storage (S3/HCP) -->
+    <packagedElement xmi:type="uml:CommunicationPath"
+                     xmi:id="rel_DES_Archive"
+                     name="Write DES containers / Read archived files">
+      <ownedEnd xmi:id="end_DES_Archive_des"
+                type="comp_DES"
+                name="des"/>
+      <ownedEnd xmi:id="end_DES_Archive_archive"
+                type="comp_ArchiveS3"
+                name="archive"/>
+    </packagedElement>
+
+    <!-- DES <-> Metadata Database -->
+    <packagedElement xmi:type="uml:CommunicationPath"
+                     xmi:id="rel_DES_DB"
+                     name="Read/Write metadata records">
+      <ownedEnd xmi:id="end_DES_DB_des"
+                type="comp_DES"
+                name="des"/>
+      <ownedEnd xmi:id="end_DES_DB_db"
+                type="comp_MetadataDB"
+                name="db"/>
+    </packagedElement>
+
+    <!-- Operations / Admin -> DES -->
+    <packagedElement xmi:type="uml:CommunicationPath"
+                     xmi:id="rel_Op_DES"
+                     name="Monitoring &amp; Control">
+      <ownedEnd xmi:id="end_Op_DES_actor"
+                type="actor_Operations"
+                name="ops"/>
+      <ownedEnd xmi:id="end_Op_DES_des"
+                type="comp_DES"
+                name="des"/>
+    </packagedElement>
+
+  </uml:Model>
+</xmi:XMI>

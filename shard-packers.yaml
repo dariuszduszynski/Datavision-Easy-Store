@@ -1,0 +1,38 @@
+# shard-packers.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: des-packer
+spec:
+  serviceName: "des-packer"
+  replicas: 16  # Liczba podów (nie liczba shardów!)
+  selector:
+    matchLabels:
+      app: des-packer
+  template:
+    metadata:
+      labels:
+        app: des-packer
+    spec:
+      containers:
+      - name: packer
+        image: des-migrator:latest
+        command: ["python", "-m", "des_migrator.packer"]
+        env:
+        - name: N_BITS
+          value: "6"  # 64 shardy
+        - name: NUM_PODS
+          value: "16"  # 16 podów
+        - name: POD_INDEX
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name  # Ekstrakt index z nazwy
+        - name: WORKER_THREADS
+          value: "8"  # Wątki per pod
+        resources:
+          requests:
+            memory: "4Gi"  # Więcej RAM, bo wiele shardów
+            cpu: "2"
+          limits:
+            memory: "8Gi"
+            cpu: "4"
