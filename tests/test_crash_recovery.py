@@ -1,4 +1,5 @@
 import asyncio
+import sys
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
@@ -6,6 +7,11 @@ import boto3
 import pytest
 from moto import mock_aws
 from sqlalchemy import insert, select, text
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+SRC_DIR = PROJECT_ROOT / "src"
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
 
 from des.core.des_writer import DesWriter
 from des.db.connector import DesContainer, DesDbConnector, ShardLock
@@ -116,45 +122,45 @@ async def test_recover_stale_claims_respects_active(db_connector):
 
 
 @pytest.mark.asyncio
-@mock_aws
 async def test_cleanup_partial_containers_old_writing(db_connector, tmp_path):
-    s3_client = boto3.client("s3", region_name="us-east-1")
-    bucket = "des-test-bucket"
-    s3_client.create_bucket(Bucket=bucket)
+    with mock_aws():
+        s3_client = boto3.client("s3", region_name="us-east-1")
+        bucket = "des-test-bucket"
+        s3_client.create_bucket(Bucket=bucket)
 
-    manager = CrashRecoveryManager(
-        db_connector,
-        s3_client=s3_client,
-        s3_bucket=bucket,
-        container_grace_seconds=0,
-        cleanup_orphaned_s3=False,
-    )
-
-    old_created = datetime.now(timezone.utc) - timedelta(hours=2)
-
-    async with db_connector.session_factory() as session:
-        container = DesContainer(
-            shard_id=1,
-            day=date.today(),
-            status="writing",
-            s3_key="missing.des",
-            file_count=0,
-            data_bytes=0,
-            created_at=old_created,
-            finalized_at=None,
+        manager = CrashRecoveryManager(
+            db_connector,
+            s3_client=s3_client,
+            s3_bucket=bucket,
+            container_grace_seconds=0,
+            cleanup_orphaned_s3=False,
         )
-        session.add(container)
-        await session.commit()
-        container_id = container.id
 
-    actions = await manager.cleanup_partial_containers()
-    assert actions == 1
+        old_created = datetime.now(timezone.utc) - timedelta(hours=2)
 
-    async with db_connector.session_factory() as session:
-        refreshed = await session.get(DesContainer, container_id)
+        async with db_connector.session_factory() as session:
+            container = DesContainer(
+                shard_id=1,
+                day=date.today(),
+                status="writing",
+                s3_key="missing.des",
+                file_count=0,
+                data_bytes=0,
+                created_at=old_created,
+                finalized_at=None,
+            )
+            session.add(container)
+            await session.commit()
+            container_id = container.id
 
-    assert refreshed.status == "failed"
-    assert refreshed.finalized_at is not None
+        actions = await manager.cleanup_partial_containers()
+        assert actions == 1
+
+        async with db_connector.session_factory() as session:
+            refreshed = await session.get(DesContainer, container_id)
+
+        assert refreshed.status == "failed"
+        assert refreshed.finalized_at is not None
 
 
 @pytest.mark.asyncio
@@ -199,79 +205,79 @@ async def test_release_expired_locks(db_connector):
 
 
 @pytest.mark.asyncio
-@mock_aws
 async def test_verify_container_integrity_success(db_connector, tmp_path):
-    s3_client = boto3.client("s3", region_name="us-east-1")
-    bucket = "des-test-bucket"
-    s3_client.create_bucket(Bucket=bucket)
+    with mock_aws():
+        s3_client = boto3.client("s3", region_name="us-east-1")
+        bucket = "des-test-bucket"
+        s3_client.create_bucket(Bucket=bucket)
 
-    des_path = _write_des_file(tmp_path / "shard_01.des")
-    key = "2024-01-01/shard_01.des"
-    s3_client.upload_file(str(des_path), bucket, key)
+        des_path = _write_des_file(tmp_path / "shard_01.des")
+        key = "2024-01-01/shard_01.des"
+        s3_client.upload_file(str(des_path), bucket, key)
 
-    async with db_connector.session_factory() as session:
-        container = DesContainer(
-            shard_id=1,
-            day=date(2024, 1, 1),
-            status="uploaded",
-            s3_key=key,
-            file_count=1,
-            data_bytes=des_path.stat().st_size,
-            created_at=datetime.now(timezone.utc),
-            finalized_at=datetime.now(timezone.utc),
+        async with db_connector.session_factory() as session:
+            container = DesContainer(
+                shard_id=1,
+                day=date(2024, 1, 1),
+                status="uploaded",
+                s3_key=key,
+                file_count=1,
+                data_bytes=des_path.stat().st_size,
+                created_at=datetime.now(timezone.utc),
+                finalized_at=datetime.now(timezone.utc),
+            )
+            session.add(container)
+            await session.commit()
+            container_id = container.id
+
+        manager = CrashRecoveryManager(
+            db_connector,
+            s3_client=s3_client,
+            s3_bucket=bucket,
+            cleanup_orphaned_s3=False,
         )
-        session.add(container)
-        await session.commit()
-        container_id = container.id
+        actions = await manager.verify_container_integrity()
+        assert actions == 0
 
-    manager = CrashRecoveryManager(
-        db_connector,
-        s3_client=s3_client,
-        s3_bucket=bucket,
-        cleanup_orphaned_s3=False,
-    )
-    actions = await manager.verify_container_integrity()
-    assert actions == 0
+        async with db_connector.session_factory() as session:
+            refreshed = await session.get(DesContainer, container_id)
 
-    async with db_connector.session_factory() as session:
-        refreshed = await session.get(DesContainer, container_id)
-
-    assert refreshed.status == "uploaded"
-    assert refreshed.file_count == 1
+        assert refreshed.status == "uploaded"
+        assert refreshed.file_count == 1
 
 
 @pytest.mark.asyncio
-@mock_aws
 async def test_verify_container_integrity_missing_s3(db_connector):
-    s3_client = boto3.client("s3", region_name="us-east-1")
-    bucket = "des-test-bucket"
-    s3_client.create_bucket(Bucket=bucket)
+    with mock_aws():
+        s3_client = boto3.client("s3", region_name="us-east-1")
+        bucket = "des-test-bucket"
+        s3_client.create_bucket(Bucket=bucket)
 
-    async with db_connector.session_factory() as session:
-        container = DesContainer(
-            shard_id=1,
-            day=date.today(),
-            status="uploaded",
-            s3_key="missing.des",
-            file_count=0,
-            data_bytes=0,
-            created_at=datetime.now(timezone.utc),
-            finalized_at=None,
+        async with db_connector.session_factory() as session:
+            container = DesContainer(
+                shard_id=1,
+                day=date.today(),
+                status="uploaded",
+                s3_key="missing.des",
+                file_count=0,
+                data_bytes=0,
+                created_at=datetime.now(timezone.utc),
+                finalized_at=None,
+            )
+            session.add(container)
+            await session.commit()
+            container_id = container.id
+
+        manager = CrashRecoveryManager(
+            db_connector,
+            s3_client=s3_client,
+            s3_bucket=bucket,
+            cleanup_orphaned_s3=False,
         )
-        session.add(container)
-        await session.commit()
-        container_id = container.id
+        actions = await manager.verify_container_integrity()
+        assert actions == 1
 
-    manager = CrashRecoveryManager(
-        db_connector,
-        s3_client=s3_client,
-        s3_bucket=bucket,
-        cleanup_orphaned_s3=False,
-    )
-    actions = await manager.verify_container_integrity()
-    assert actions == 1
+        async with db_connector.session_factory() as session:
+            refreshed = await session.get(DesContainer, container_id)
 
-    async with db_connector.session_factory() as session:
-        refreshed = await session.get(DesContainer, container_id)
-
-    assert refreshed.status == "failed"
+        assert refreshed.status == "failed"

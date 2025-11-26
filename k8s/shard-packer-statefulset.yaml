@@ -71,6 +71,22 @@ spec:
           ports:
             - containerPort: 9100
               name: metrics
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 9100
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 9100
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 2
           volumeMounts:
             - name: des-workdir
               mountPath: /var/lib/des

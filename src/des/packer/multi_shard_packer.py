@@ -9,6 +9,7 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Protocol
 
+from botocore.exceptions import ClientError
 from des.core.des_writer import DesWriter
 from des.db.connector import DesContainer, DesDbConnector
 from des.monitoring.metrics import (
@@ -17,7 +18,12 @@ from des.monitoring.metrics import (
     PACKER_LOOP_DURATION,
     SHARD_LOCK_CONFLICTS,
 )
+from des.utils.logging import get_logger, log_context
+from des.utils.retry import async_retry
 from sqlalchemy import insert, update
+from sqlalchemy.exc import DBAPIError
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -36,6 +42,14 @@ class SourceFileProvider(Protocol):
 class StorageBackend(Protocol):
     async def upload(self, local_path: str, dest_key: str) -> None:
         """Upload finished DES to remote storage (e.g., S3)."""
+
+
+class RetryableS3Error(Exception):
+    """Raised when an S3 operation should be retried."""
+
+
+class RetryableDbError(Exception):
+    """Raised when a DB operation should be retried."""
 
 
 class HeartbeatManager:
@@ -111,37 +125,77 @@ class MultiShardPacker:
     async def _process_shard(self, shard_id: int) -> None:
         start = time.perf_counter()
         shard_label = str(shard_id)
-        try:
-            acquired = await self.db.try_acquire_shard_lock(shard_id, self.holder_id, self.lock_ttl)
-            if not acquired:
-                SHARD_LOCK_CONFLICTS.labels(shard_id=shard_label).inc()
-                return
+        with log_context(shard_id=shard_id, holder_id=self.holder_id):
+            try:
+                logger.info("processing_shard", shard_id=shard_id)
+                acquired = await self.db.try_acquire_shard_lock(
+                    shard_id, self.holder_id, self.lock_ttl
+                )
+                if not acquired:
+                    SHARD_LOCK_CONFLICTS.labels(shard_id=shard_label).inc()
+                    logger.info(
+                        "shard_lock_conflict",
+                        shard_id=shard_id,
+                        holder_id=self.holder_id,
+                    )
+                    return
 
-            if shard_id not in self._heartbeats:
-                hb = HeartbeatManager(self.db, shard_id, self.holder_id, self.lock_ttl)
-                self._heartbeats[shard_id] = hb
-                await hb.start()
+                if shard_id not in self._heartbeats:
+                    hb = HeartbeatManager(self.db, shard_id, self.holder_id, self.lock_ttl)
+                    self._heartbeats[shard_id] = hb
+                    await hb.start()
+                    logger.info(
+                        "heartbeat_started",
+                        shard_id=shard_id,
+                        holder_id=self.holder_id,
+                        ttl_seconds=self.lock_ttl,
+                    )
 
-            today = date.today()
-            await self._ensure_writer(shard_id, today)
+                today = date.today()
+                await self._ensure_writer(shard_id, today)
 
-            files = await self.source.get_pending_files(shard_id, self.batch_size)
-            if not files:
-                return
+                files = await self._claim_files(shard_id, self.batch_size)
+                if not files:
+                    logger.info(
+                        "no_files_to_pack",
+                        shard_id=shard_id,
+                        batch_size=self.batch_size,
+                    )
+                    return
 
-            state = self._writers[shard_id]
-            writer: DesWriter = state["writer"]
-            for f in files:
-                writer.add_file(f.name, f.data, meta=f.meta or {})
-                state["file_count"] += 1
-                state["data_bytes"] += len(f.data)
-                PACKED_FILES.labels(shard_id=shard_label).inc()
-                PACKED_BYTES.labels(shard_id=shard_label).inc(len(f.data))
+                state = self._writers[shard_id]
+                writer: DesWriter = state["writer"]
+                with log_context(
+                    shard_id=shard_id,
+                    holder_id=self.holder_id,
+                    batch_size=self.batch_size,
+                ):
+                    logger.info("claimed_files", count=len(files))
+                    for f in files:
+                        logger.info(
+                            "packing_file",
+                            file_name=f.name,
+                            size_bytes=len(f.data),
+                            shard_id=f.shard_id,
+                        )
+                        writer.add_file(f.name, f.data, meta=f.meta or {})
+                        state["file_count"] += 1
+                        state["data_bytes"] += len(f.data)
+                        PACKED_FILES.labels(shard_id=shard_label).inc()
+                        PACKED_BYTES.labels(shard_id=shard_label).inc(len(f.data))
 
-            await self._maybe_checkpoint(shard_id)
-        finally:
-            elapsed = time.perf_counter() - start
-            PACKER_LOOP_DURATION.labels(shard_id=shard_label).set(elapsed)
+                await self._maybe_checkpoint(shard_id)
+            except Exception as exc:
+                logger.error(
+                    "shard_processing_failed",
+                    shard_id=shard_id,
+                    holder_id=self.holder_id,
+                    exc_info=exc,
+                )
+                raise
+            finally:
+                elapsed = time.perf_counter() - start
+                PACKER_LOOP_DURATION.labels(shard_id=shard_label).set(elapsed)
 
     def _dest_key(self, shard_id: int, day: date) -> str:
         prefix = self.dest_prefix.rstrip("/")
@@ -180,6 +234,13 @@ class MultiShardPacker:
             "data_bytes": 0,
             "last_checkpoint": datetime.now(timezone.utc),
         }
+        logger.info(
+            "writer_initialized",
+            shard_id=shard_id,
+            container_id=container_id,
+            day=day.isoformat(),
+            path=str(local_path),
+        )
 
     async def _finalize_writer(self, shard_id: int) -> None:
         state = self._writers.get(shard_id)
@@ -190,7 +251,16 @@ class MultiShardPacker:
         writer.close()
 
         dest_key = self._dest_key(shard_id, state["day"])
-        await self.storage.upload(str(state["path"]), dest_key)
+        logger.info(
+            "finalizing_writer",
+            shard_id=shard_id,
+            container_id=state["container_id"],
+            dest_key=dest_key,
+            path=str(state["path"]),
+            file_count=state["file_count"],
+            data_bytes=state["data_bytes"],
+        )
+        await self._upload_to_s3(str(state["path"]), dest_key)
         await self._update_container_record(
             container_id=state["container_id"],
             status="uploaded",
@@ -200,6 +270,14 @@ class MultiShardPacker:
         )
 
         del self._writers[shard_id]
+        logger.info(
+            "writer_finalized",
+            shard_id=shard_id,
+            container_id=state["container_id"],
+            dest_key=dest_key,
+            file_count=state["file_count"],
+            data_bytes=state["data_bytes"],
+        )
 
     async def _maybe_checkpoint(self, shard_id: int) -> None:
         state = self._writers.get(shard_id)
@@ -218,7 +296,35 @@ class MultiShardPacker:
                 data_bytes=state["data_bytes"],
                 finalized_at=None,
             )
+            logger.info(
+                "container_checkpointed",
+                shard_id=shard_id,
+                container_id=state["container_id"],
+                file_count=state["file_count"],
+                data_bytes=state["data_bytes"],
+            )
             state["last_checkpoint"] = now
+
+    @async_retry(max_attempts=3, exceptions=(RetryableDbError,))
+    async def _claim_files(self, shard_id: int, limit: int) -> List[PendingFile]:
+        try:
+            return await self.source.get_pending_files(shard_id, limit)
+        except DBAPIError as exc:
+            if _is_retryable_db_error(exc):
+                logger.warning(
+                    "claim_files_retryable_db_error",
+                    shard_id=shard_id,
+                    limit=limit,
+                    exc_info=exc,
+                )
+                raise RetryableDbError from exc
+            logger.error(
+                "claim_files_db_error",
+                shard_id=shard_id,
+                limit=limit,
+                exc_info=exc,
+            )
+            raise
 
     async def _create_container_record(
         self,
@@ -249,6 +355,7 @@ class MultiShardPacker:
             await session.commit()
             return int(result.scalar_one())
 
+    @async_retry(max_attempts=3, exceptions=(RetryableDbError,))
     async def _update_container_record(
         self,
         container_id: int,
@@ -267,6 +374,87 @@ class MultiShardPacker:
                 finalized_at=finalized_at,
             )
         )
-        async with self.db.session_factory() as session:
-            await session.execute(stmt)
-            await session.commit()
+        try:
+            async with self.db.session_factory() as session:
+                await session.execute(stmt)
+                await session.commit()
+        except DBAPIError as exc:
+            if _is_retryable_db_error(exc):
+                logger.warning(
+                    "update_container_retryable_db_error",
+                    container_id=container_id,
+                    status=status,
+                    exc_info=exc,
+                )
+                raise RetryableDbError from exc
+            logger.error(
+                "update_container_db_error",
+                container_id=container_id,
+                status=status,
+                exc_info=exc,
+            )
+            raise
+
+    @async_retry(max_attempts=5, exceptions=(RetryableS3Error,))
+    async def _upload_to_s3(self, local_path: str, dest_key: str) -> None:
+        try:
+            await self.storage.upload(local_path, dest_key)
+        except ClientError as exc:
+            if _is_retryable_s3_error(exc):
+                logger.warning(
+                    "s3_upload_retryable",
+                    path=local_path,
+                    dest_key=dest_key,
+                    exc_info=exc,
+                )
+                raise RetryableS3Error from exc
+            logger.error(
+                "s3_upload_failed",
+                path=local_path,
+                dest_key=dest_key,
+                exc_info=exc,
+            )
+            raise
+        except Exception as exc:
+            # Non-S3 errors bubble without retry handling.
+            logger.error(
+                "s3_upload_unexpected_error",
+                path=local_path,
+                dest_key=dest_key,
+                exc_info=exc,
+            )
+            raise
+
+
+def _is_retryable_s3_error(exc: ClientError) -> bool:
+    """Return True if the S3 error is considered transient."""
+    response = getattr(exc, "response", {}) or {}
+    error = response.get("Error") or {}
+    code = str(error.get("Code") or "").upper()
+    status = response.get("ResponseMetadata", {}).get("HTTPStatusCode")
+
+    transient_status = {500, 503}
+    transient_codes = {"500", "503", "429", "REQUESTTIMEOUT", "TOOMANYREQUESTS"}
+    if status in transient_status:
+        return True
+    return code in transient_codes
+
+
+def _is_retryable_db_error(exc: DBAPIError) -> bool:
+    """Return True if DB error looks like a transient lock/deadlock issue."""
+    orig = getattr(exc, "orig", None)
+    sqlstate = getattr(orig, "pgcode", None) or getattr(orig, "sqlstate", None)
+    if sqlstate and sqlstate in {"40P01", "55P03", "40001"}:
+        return True
+
+    message = str(exc).lower()
+    transient_markers = [
+        "deadlock detected",
+        "could not obtain lock",
+        "lock wait timeout",
+        "timeout expired",
+        "could not serialize access",
+        "serialization failure",
+        "database is locked",
+    ]
+    return any(marker in message for marker in transient_markers)
