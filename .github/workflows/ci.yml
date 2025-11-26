@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.10", "3.11"] # Możesz testować na kilku wersjach
+        python-version: ["3.12" # Możesz testować na kilku wersjach
 
     steps:
       # 1. Pobranie kodu z repozytorium
