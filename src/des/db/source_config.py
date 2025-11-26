@@ -102,7 +102,7 @@ class DatabaseConnection(BaseModel):
         """
         # Driver mapping
         drivers = {
-            DatabaseType.ORACLE: "oracle+cx_oracle",
+            DatabaseType.ORACLE: "oracle+oracledb",
             DatabaseType.MSSQL: "mssql+pymssql",
             DatabaseType.MYSQL: "mysql+pymysql",
             DatabaseType.POSTGRES: "postgresql+psycopg2",

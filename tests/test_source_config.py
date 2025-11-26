@@ -113,7 +113,7 @@ def test_database_connection_oracle():
         password="oracle",
     )
     url = conn.get_connection_url()
-    assert "oracle+cx_oracle://" in url
+    assert "oracle+oracledb://" in url
 
 
 @pytest.mark.unit
