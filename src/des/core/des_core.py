@@ -6,6 +6,8 @@ import gzip
 from dataclasses import dataclass
 from typing import BinaryIO, Dict, List, Optional
 
+FLAG_IS_EXTERNAL: int = 1 << 0
+
 # --- Stałe formatu ---
 
 HEADER_MAGIC = b"DESHEAD1"
