@@ -31,6 +31,7 @@ src/des/packer/source_provider.py
 src/des/packer/storage.py
 src/des/packer/worker.py
 src/des/utils/__init__.py
+src/des/utils/logging.py
 src/des/utils/retry.py
 src/des/utils/snowflake_name.py
 tests/test_core.py
@@ -40,6 +41,7 @@ tests/test_core_s3_des_reader.py
 tests/test_crash_recovery.py
 tests/test_daily_sharded_store.py
 tests/test_des_core.py
+tests/test_e2e_migration.py
 tests/test_hash_routing.py
 tests/test_index_cache.py
 tests/test_models.py
