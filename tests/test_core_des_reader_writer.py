@@ -56,3 +56,41 @@ def test_des_reader_contains(tmp_path: Path) -> None:
     with DesReader(str(des_path)) as reader:
         assert "a.txt" in reader
         assert "missing.txt" not in reader
+
+
+@pytest.mark.unit
+def test_des_reader_corrupted_footer(tmp_path: Path) -> None:
+    des_path = tmp_path / "corrupted.des"
+    with DesWriter(str(des_path)) as writer:
+        writer.add_file("a.txt", b"hello", meta={"mime": "text/plain"})
+
+    # Corrupt the footer bytes
+    with des_path.open("r+b") as f:
+        f.seek(-16, 2)
+        f.write(b"\xFF" * 16)
+
+    with pytest.raises(Exception):
+        DesReader(str(des_path))
+
+
+@pytest.mark.unit
+def test_des_reader_invalid_magic_version(tmp_path: Path) -> None:
+    des_path = tmp_path / "badmagic.des"
+    with DesWriter(str(des_path)) as writer:
+        writer.add_file("a.txt", b"hello", meta={"mime": "text/plain"})
+
+    with des_path.open("r+b") as f:
+        f.seek(-72, 2)  # FOOTER size from des_core.py
+        # overwrite magic and version (8sB)
+        f.write(b"BADMAGIC")
+        f.write(b"\xFF")  # invalid version
+
+    with pytest.raises(Exception):
+        DesReader(str(des_path))
+
+
+@pytest.mark.unit
+def test_des_reader_missing_file(tmp_path: Path) -> None:
+    missing = tmp_path / "missing.des"
+    with pytest.raises(FileNotFoundError):
+        DesReader(str(missing))
