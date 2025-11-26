@@ -1,3 +1,6 @@
 pytest
 moto[s3]
 pytest-cov
+freezegun
+pytest-mock
+fakeredis
