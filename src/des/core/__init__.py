@@ -7,7 +7,6 @@ from des.core.des_writer import DesWriter
 from des.core.des_reader import DesReader
 from des.core.s3_des_reader import S3DesReader
 
-from __future__ import annotations  # ← Na początku każdego pliku
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:

@@ -1,6 +1,4 @@
 """Multi-shard DES packer with shard locking and day rollover."""
-from __future__ import annotations
-
 import asyncio
 import contextlib
 import os

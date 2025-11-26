@@ -2,9 +2,6 @@
 DES format constants, magic numbers, and flags.
 """
 import struct
-
-
-from __future__ import annotations  # ← Na początku każdego pliku
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:

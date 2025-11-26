@@ -5,17 +5,12 @@ import json
 import time
 from abc import ABC, abstractmethod
 from threading import Lock
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, TYPE_CHECKING
 
 from des.core.models import IndexEntry
 
-from __future__ import annotations  # ← Na początku każdego pliku
-from typing import TYPE_CHECKING
-
 if TYPE_CHECKING:
     from des.core.cache import IndexCacheBackend
-
-
 
 
 class IndexCacheBackend(ABC):

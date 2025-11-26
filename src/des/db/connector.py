@@ -1,8 +1,6 @@
 """
 Async PostgreSQL connector and models for DES.
 """
-from __future__ import annotations
-
 import os
 from datetime import date, datetime, timedelta, timezone
 from typing import Optional
