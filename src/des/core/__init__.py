@@ -3,13 +3,13 @@ from .des_core import (
     DesReader,
     InMemoryIndexCache,
     RedisIndexCache,
+    FLAG_IS_EXTERNAL,
 )
-from .s3_des_reader import S3DesReader
 
 __all__ = [
     "DesWriter",
     "DesReader",
     "InMemoryIndexCache",
     "RedisIndexCache",
-    "S3DesReader",
+    "FLAG_IS_EXTERNAL",
 ]
