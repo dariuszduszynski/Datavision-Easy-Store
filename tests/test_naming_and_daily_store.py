@@ -132,3 +132,75 @@ def test_daily_store_rollover_between_days(tmp_path: Path, monkeypatch) -> None:
 
     assert files_day1 and files_day2
     assert files_day1.isdisjoint(files_day2)
+
+
+@pytest.mark.unit
+def test_snowflake_name_empty_prefix():
+    """Test that empty prefix raises error."""
+    with pytest.raises(ValueError, match="prefix must be non-empty"):
+        SnowflakeNameGenerator(SnowflakeNameConfig(prefix=""))
+
+
+@pytest.mark.unit
+def test_snowflake_name_invalid_prefix():
+    """Test that invalid prefix raises error."""
+    with pytest.raises(ValueError, match="prefix may only use"):
+        SnowflakeNameGenerator(SnowflakeNameConfig(prefix="bad-prefix"))
+
+    with pytest.raises(ValueError, match="prefix may only use"):
+        SnowflakeNameGenerator(SnowflakeNameConfig(prefix="test_prefix"))
+
+
+@pytest.mark.unit
+def test_snowflake_name_invalid_node_id():
+    """Test that invalid node_id raises error."""
+    with pytest.raises(ValueError, match="node_id must be in"):
+        SnowflakeNameGenerator(SnowflakeNameConfig(node_id=-1))
+
+    with pytest.raises(ValueError, match="node_id must be in"):
+        SnowflakeNameGenerator(SnowflakeNameConfig(node_id=256))
+
+
+@pytest.mark.unit
+def test_snowflake_name_invalid_wrap_bits():
+    """Test that invalid wrap_bits raises error."""
+    with pytest.raises(ValueError, match="wrap_bits must be in"):
+        SnowflakeNameGenerator(SnowflakeNameConfig(wrap_bits=0))
+
+    with pytest.raises(ValueError, match="wrap_bits must be in"):
+        SnowflakeNameGenerator(SnowflakeNameConfig(wrap_bits=33))
+
+
+@pytest.mark.unit
+def test_snowflake_name_sequence_overflow(monkeypatch):
+    """Test sequence overflow handling."""
+    fixed_ts = int(datetime(2025, 1, 1, 12, 0, 0).timestamp() * 1000)
+
+    gen = SnowflakeNameGenerator(SnowflakeNameConfig(node_id=1, prefix="TEST"))
+    call_count = {"count": 0}
+
+    def fake_epoch_ms():
+        # After 256 calls advance time by 1 ms to break overflow wait loop
+        val = fixed_ts if call_count["count"] < 256 else fixed_ts + 1
+        call_count["count"] += 1
+        return val
+
+    monkeypatch.setattr(gen, "_epoch_ms", fake_epoch_ms)
+
+    names = [gen.next_name(day=date(2025, 1, 1)) for _ in range(256)]
+
+    # All should be unique
+    assert len(set(names)) == 256
+
+
+@pytest.mark.unit
+def test_snowflake_checksum_calculation():
+    """Test checksum calculation."""
+    gen = SnowflakeNameGenerator(SnowflakeNameConfig(prefix="TEST"))
+
+    checksum = gen._checksum_byte(0x123456789ABC)
+    assert 0 <= checksum <= 255
+    assert isinstance(checksum, int)
+
+    checksum2 = gen._checksum_byte(0x123456789ABC)
+    assert checksum == checksum2
