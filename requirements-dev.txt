@@ -1,6 +1,8 @@
 pytest
+pytest-asyncio
 moto[s3]
 pytest-cov
 freezegun
 pytest-mock
 fakeredis
+pytest-asyncio

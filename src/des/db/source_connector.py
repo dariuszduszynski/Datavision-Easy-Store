@@ -107,7 +107,7 @@ class SourceDatabaseConnector:
     def _reflect_table(self):
         """Reflect table structure from database."""
         table_name = self.config.table.name
-        schema = self.config.table.schema
+        schema = self.config.table.table_schema
         
         # Reflect table
         self._table = Table(
@@ -206,7 +206,7 @@ class SourceDatabaseConnector:
         Returns:
             List of claimed SourceFile objects
         """
-        if not self.engine or not self._table:
+        if not self.engine or self._table is None:
             raise RuntimeError("Not connected to database")
         
         cols = self.config.table.columns
@@ -290,9 +290,9 @@ class SourceDatabaseConnector:
             )
             
             # Add claimed_by/claimed_at if table has these columns
-            if 'claimed_by' in table.c:
+            if hasattr(table.c, 'claimed_by'):
                 update_stmt = update_stmt.values(claimed_by=holder_id)
-            if 'claimed_at' in table.c:
+            if hasattr(table.c, 'claimed_at'):
                 update_stmt = update_stmt.values(claimed_at=now)
             
             conn.execute(update_stmt)
@@ -318,7 +318,7 @@ class SourceDatabaseConnector:
             des_names: List of DES names (snowflake IDs)
             container_id: DES container ID
         """
-        if not self.engine or not self._table:
+        if not self.engine or self._table is None:
             raise RuntimeError("Not connected to database")
         
         cols = self.config.table.columns
@@ -334,11 +334,11 @@ class SourceDatabaseConnector:
             )
             
             # Add packed_at if column exists
-            if 'packed_at' in table.c:
+            if hasattr(table.c, 'packed_at'):
                 update_stmt = update_stmt.values(packed_at=now)
             
             # Add des_name if column exists
-            if 'des_name' in table.c:
+            if hasattr(table.c, 'des_name'):
                 # Map file_id → des_name
                 # For simplicity, update in loop (or use CASE WHEN for batch)
                 for file_id, des_name in zip(file_ids, des_names):
@@ -350,9 +350,9 @@ class SourceDatabaseConnector:
                             'des_name': des_name
                         })
                     )
-                    if 'packed_at' in table.c:
+                    if hasattr(table.c, 'packed_at'):
                         stmt = stmt.values(packed_at=now)
-                    if 'des_container_id' in table.c:
+                    if hasattr(table.c, 'des_container_id'):
                         stmt = stmt.values(des_container_id=container_id)
                     
                     conn.execute(stmt)
@@ -374,7 +374,7 @@ class SourceDatabaseConnector:
             file_ids: List of file IDs
             error_message: Error description
         """
-        if not self.engine or not self._table:
+        if not self.engine or self._table is None:
             raise RuntimeError("Not connected to database")
         
         cols = self.config.table.columns
@@ -388,7 +388,7 @@ class SourceDatabaseConnector:
             )
             
             # Add error_message if column exists
-            if 'error_message' in table.c:
+            if hasattr(table.c, 'error_message'):
                 update_stmt = update_stmt.values(error_message=error_message[:500])
             
             conn.execute(update_stmt)
@@ -405,7 +405,7 @@ class SourceDatabaseConnector:
         Returns:
             Dict with counts by status
         """
-        if not self.engine or not self._table:
+        if not self.engine or self._table is None:
             raise RuntimeError("Not connected to database")
         
         cols = self.config.table.columns

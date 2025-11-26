@@ -43,7 +43,7 @@ class ColumnMapping(BaseModel):
         description="Additional columns to store in metadata"
     )
     
-    @field_validator('metadata_columns')
+    @field_validator('metadata_columns', mode='before')
     @classmethod
     def validate_metadata_columns(cls, v):
         """Ensure metadata column names are valid."""
@@ -63,7 +63,7 @@ class DatabaseConnection(BaseModel):
     password: str = Field(..., description="Database password")
     
     # Optional connection parameters
-    schema: Optional[str] = Field(None, description="Schema name (Oracle, PostgreSQL)")
+    db_schema: Optional[str] = Field(None, description="Schema name (Oracle, PostgreSQL)", alias="schema")
     charset: str = Field("utf8mb4", description="Character set")
     
     # Connection pool settings
@@ -128,7 +128,7 @@ class SourceTableConfig(BaseModel):
     """Configuration for source table."""
     
     name: str = Field(..., description="Table name")
-    schema: Optional[str] = Field(None, description="Schema name (if applicable)")
+    table_schema: Optional[str] = Field(None, description="Schema name (if applicable)", alias="schema")
     
     # Column mapping
     columns: ColumnMapping = Field(..., description="Column mapping to SourceFile")
@@ -158,8 +158,8 @@ class SourceTableConfig(BaseModel):
     @property
     def full_table_name(self) -> str:
         """Get fully qualified table name."""
-        if self.schema:
-            return f"{self.schema}.{self.name}"
+        if self.table_schema:
+            return f"{self.table_schema}.{self.name}"
         return self.name
 
 
