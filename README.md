@@ -76,6 +76,17 @@ batch = s3r.get_files_batch(["report.pdf", "log.txt"])
 - MultiShardPacker worker flow for continuous packing and day rollover.
 - Prometheus metrics and Kubernetes deployment examples for assignment and packer services.
 
+## Testing and coverage
+
+- Run tests: `pytest`
+- Run with coverage: `pytest --cov=src/des --cov-report=term-missing`
+
+### Test markers
+
+- All tests: `pytest`
+- Unit tests only: `pytest -m "not integration"`
+- Integration tests only: `pytest -m integration`
+
 ## License
 
 MIT.

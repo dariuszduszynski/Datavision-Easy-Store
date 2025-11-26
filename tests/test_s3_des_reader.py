@@ -15,6 +15,7 @@ from des.core.des_core import DesReader, DesWriter  # noqa: E402
 from des.core.s3_des_reader import S3DesReader  # noqa: E402
 
 
+@pytest.mark.integration
 @mock_s3
 def test_s3_des_reader_round_trip(tmp_path: Path) -> None:
     bucket = "test-des-bucket"
@@ -44,6 +45,7 @@ def test_s3_des_reader_round_trip(tmp_path: Path) -> None:
         assert reader.get_meta(name) == meta
 
 
+@pytest.mark.integration
 @mock_s3
 def test_s3_des_reader_batch_read(tmp_path: Path) -> None:
     bucket = "test-des-bucket"
