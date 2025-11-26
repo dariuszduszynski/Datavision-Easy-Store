@@ -37,6 +37,15 @@ class DesReader:
 
         self._f.seek(file_size - FOOTER_SIZE)
         raw = self._f.read(FOOTER_SIZE)
+        self._parse_footer(raw)
+
+    def _parse_footer(self, data: bytes):
+        """
+        Parse and validate DES footer.
+        
+        Raises:
+            ValueError: If footer is corrupted or contains invalid values
+        """
         (
             magic,
             version,
@@ -48,12 +57,71 @@ class DesReader:
             self.index_start,
             self.index_length,
             self.file_count,
-        ) = FOOTER_STRUCT.unpack(raw)
-
+        ) = FOOTER_STRUCT.unpack(data)
+        
+        # Validate magic and version
         if magic != FOOTER_MAGIC:
-            raise ValueError("Invalid DES footer magic")
+            raise ValueError(
+                f"Invalid DES footer magic: {magic!r} (expected {FOOTER_MAGIC!r})"
+            )
         if version != VERSION:
-            raise ValueError(f"Unsupported DES version: {version}")
+            raise ValueError(
+                f"Unsupported DES version: {version} (expected {VERSION})"
+            )
+        
+        # Validate numeric fields are non-negative
+        if self.data_start < 0:
+            raise ValueError(f"Invalid data_start in footer: {self.data_start}")
+        if self.data_length < 0:
+            raise ValueError(f"Invalid data_length in footer: {self.data_length}")
+        if self.meta_start < 0:
+            raise ValueError(f"Invalid meta_start in footer: {self.meta_start}")
+        if self.meta_length < 0:
+            raise ValueError(f"Invalid meta_length in footer: {self.meta_length}")
+        if self.index_start < 0:
+            raise ValueError(f"Invalid index_start in footer: {self.index_start}")
+        if self.index_length < 0:
+            raise ValueError(f"Invalid index_length in footer: {self.index_length}")
+        if self.file_count < 0:
+            raise ValueError(f"Invalid file_count in footer: {self.file_count}")
+        min_entry_size = 2 + ENTRY_FIXED_STRUCT.size
+        if self.file_count * min_entry_size > self.index_length:
+            raise ValueError(
+                f"Invalid file_count in footer: {self.file_count} (index too small: {self.index_length} bytes)"
+            )
+        
+        # Validate regions don't overlap and fit in file
+        if self.data_start > self.file_size:
+            raise ValueError(f"data_start ({self.data_start}) exceeds file size ({self.file_size})")
+        if self.meta_start > self.file_size:
+            raise ValueError(f"meta_start ({self.meta_start}) exceeds file size ({self.file_size})")
+        if self.index_start > self.file_size:
+            raise ValueError(f"index_start ({self.index_start}) exceeds file size ({self.file_size})")
+        
+        # Validate data region ends before meta region starts
+        data_end = self.data_start + self.data_length
+        if data_end > self.meta_start:
+            raise ValueError(
+                f"Data region overlaps meta region: data ends at {data_end}, "
+                f"meta starts at {self.meta_start}"
+            )
+        
+        # Validate meta region ends before or at index region start
+        meta_end = self.meta_start + self.meta_length
+        if meta_end > self.index_start:
+            raise ValueError(
+                f"Meta region overlaps index region: meta ends at {meta_end}, "
+                f"index starts at {self.index_start}"
+            )
+        
+        # Validate index region fits in file (before footer)
+        index_end = self.index_start + self.index_length
+        footer_start = self.file_size - FOOTER_SIZE
+        if index_end > footer_start:
+            raise ValueError(
+                f"Index region overlaps footer: index ends at {index_end}, "
+                f"footer starts at {footer_start}"
+            )
 
     def _default_cache_key(self) -> str:
         try:

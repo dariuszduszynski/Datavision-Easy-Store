@@ -10,6 +10,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from des.core import DesReader, DesWriter  # noqa: E402
+from des.core.constants import FOOTER_SIZE  # noqa: E402
 
 
 @pytest.mark.unit
@@ -60,32 +61,33 @@ def test_des_reader_contains(tmp_path: Path) -> None:
 
 @pytest.mark.unit
 def test_des_reader_corrupted_footer(tmp_path: Path) -> None:
+    """Test that corrupted footer magic is detected."""
     des_path = tmp_path / "corrupted.des"
     with DesWriter(str(des_path)) as writer:
         writer.add_file("a.txt", b"hello", meta={"mime": "text/plain"})
-
-    # Corrupt the footer bytes
+    
+    # Corrupt the footer magic (first 8 bytes of 72-byte footer)
     with des_path.open("r+b") as f:
-        f.seek(-16, 2)
-        f.write(b"\xFF" * 16)
-
-    with pytest.raises(Exception):
+        f.seek(-FOOTER_SIZE, 2)
+        f.write(b"BADMAGIC")  # Overwrite magic bytes
+    
+    with pytest.raises(ValueError, match="Invalid DES footer magic"):
         DesReader(str(des_path))
 
 
 @pytest.mark.unit
 def test_des_reader_invalid_magic_version(tmp_path: Path) -> None:
+    """Test that invalid version is detected."""
     des_path = tmp_path / "badmagic.des"
     with DesWriter(str(des_path)) as writer:
         writer.add_file("a.txt", b"hello", meta={"mime": "text/plain"})
-
+    
+    # Overwrite version byte (byte 8 in footer)
     with des_path.open("r+b") as f:
-        f.seek(-72, 2)  # FOOTER size from des_core.py
-        # overwrite magic and version (8sB)
-        f.write(b"BADMAGIC")
-        f.write(b"\xFF")  # invalid version
-
-    with pytest.raises(Exception):
+        f.seek(-FOOTER_SIZE + 8, 2)  # Skip magic (8 bytes), write version
+        f.write(b"\xFF")  # Invalid version
+    
+    with pytest.raises(ValueError, match="Unsupported DES version"):
         DesReader(str(des_path))
 
 
@@ -94,3 +96,53 @@ def test_des_reader_missing_file(tmp_path: Path) -> None:
     missing = tmp_path / "missing.des"
     with pytest.raises(FileNotFoundError):
         DesReader(str(missing))
+
+
+@pytest.mark.unit
+def test_des_reader_negative_file_count(tmp_path: Path) -> None:
+    """Test that negative file_count is detected."""
+    des_path = tmp_path / "bad_count.des"
+    with DesWriter(str(des_path)) as writer:
+        writer.add_file("a.txt", b"hello", meta={"mime": "text/plain"})
+    
+    # Corrupt file_count (last 8 bytes of footer)
+    with des_path.open("r+b") as f:
+        f.seek(-8, 2)
+        f.write(b"\xFF" * 8)  # Write -1 as signed int
+    
+    with pytest.raises(ValueError, match="Invalid.*footer"):
+        DesReader(str(des_path))
+
+
+@pytest.mark.unit
+def test_des_reader_overlapping_regions(tmp_path: Path) -> None:
+    """Test that overlapping regions are detected."""
+    des_path = tmp_path / "overlapping.des"
+    with DesWriter(str(des_path)) as writer:
+        writer.add_file("a.txt", b"hello", meta={"mime": "text/plain"})
+    
+    # Make data_length huge so it overlaps meta region
+    with des_path.open("r+b") as f:
+        # data_length is at offset 24 in footer (after magic+version+reserved+data_start)
+        f.seek(-FOOTER_SIZE + 24, 2)
+        f.write((999999999).to_bytes(8, 'little'))
+    
+    with pytest.raises(ValueError, match="overlaps"):
+        DesReader(str(des_path))
+
+
+@pytest.mark.unit
+def test_des_reader_invalid_offsets(tmp_path: Path) -> None:
+    """Test that offsets exceeding file size are detected."""
+    des_path = tmp_path / "bad_offset.des"
+    with DesWriter(str(des_path)) as writer:
+        writer.add_file("a.txt", b"hello", meta={"mime": "text/plain"})
+    
+    # Set meta_start beyond file size
+    with des_path.open("r+b") as f:
+        # meta_start is at offset 32 in footer
+        f.seek(-FOOTER_SIZE + 32, 2)
+        f.write((999999999).to_bytes(8, 'little'))
+    
+    with pytest.raises(ValueError, match="exceeds file size"):
+        DesReader(str(des_path))
