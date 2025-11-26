@@ -178,9 +178,9 @@ class HealthChecker:
             self._check_single_source(name, connector)
             for name, connector in connectors.items()
         ]
-        results: list[Tuple[str, bool, Optional[str]] | BaseException] = await asyncio.gather(
-            *tasks, return_exceptions=True
-        )
+        results: list[
+            Tuple[str, bool, Optional[str]] | BaseException
+        ] = await asyncio.gather(*tasks, return_exceptions=True)
 
         for result in results:
             if isinstance(result, BaseException):

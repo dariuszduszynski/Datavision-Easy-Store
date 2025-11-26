@@ -34,7 +34,9 @@ class IndexCacheBackend(ABC):
         pass
 
     @abstractmethod
-    def set(self, key: str, entries: List[IndexEntry], ttl: Optional[int] = None) -> None:
+    def set(
+        self, key: str, entries: List[IndexEntry], ttl: Optional[int] = None
+    ) -> None:
         """
         Store index entries in cache.
 
@@ -102,7 +104,9 @@ class InMemoryIndexCache(IndexCacheBackend):
 
             return entries
 
-    def set(self, key: str, entries: List[IndexEntry], ttl: Optional[int] = None) -> None:
+    def set(
+        self, key: str, entries: List[IndexEntry], ttl: Optional[int] = None
+    ) -> None:
         """Thread-safe set with TTL and LRU eviction."""
         with self._lock:
             # Calculate expiry
@@ -233,7 +237,9 @@ class RedisIndexCache(IndexCacheBackend):
             self.redis.delete(redis_key)
             return None
 
-    def set(self, key: str, entries: List[IndexEntry], ttl: Optional[int] = None) -> None:
+    def set(
+        self, key: str, entries: List[IndexEntry], ttl: Optional[int] = None
+    ) -> None:
         """Set to Redis with serialization and TTL."""
         redis_key = self._make_key(key)
         serialized = self._serialize(entries)
@@ -290,7 +296,9 @@ class NullCache(IndexCacheBackend):
     def get(self, key: str) -> Optional[List[IndexEntry]]:
         return None
 
-    def set(self, key: str, entries: List[IndexEntry], ttl: Optional[int] = None) -> None:
+    def set(
+        self, key: str, entries: List[IndexEntry], ttl: Optional[int] = None
+    ) -> None:
         pass
 
     def delete(self, key: str) -> None:

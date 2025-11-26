@@ -372,7 +372,12 @@ class DesWriter:
     def __enter__(self) -> "DesWriter":
         return self
 
-    def __exit__(self, exc_type: Optional[type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[Any]) -> Literal[False]:
+    def __exit__(
+        self,
+        exc_type: Optional[type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[Any],
+    ) -> Literal[False]:
         if not self._closed:
             self.close()
         return False

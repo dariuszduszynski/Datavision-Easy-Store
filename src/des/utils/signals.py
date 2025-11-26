@@ -35,4 +35,3 @@ def setup_signal_handlers(on_stop: Any) -> None:
     handler = _make_handler(_stop)
     for sig in (signal.SIGINT, signal.SIGTERM):
         signal.signal(sig, handler)
-

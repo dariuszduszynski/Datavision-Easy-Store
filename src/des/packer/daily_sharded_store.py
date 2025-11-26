@@ -133,7 +133,12 @@ class DailyShardedDesStore:
     def __enter__(self) -> "DailyShardedDesStore":
         return self
 
-    def __exit__(self, exc_type: Optional[type[BaseException]], exc: Optional[BaseException], tb: Any) -> None:
+    def __exit__(
+        self,
+        exc_type: Optional[type[BaseException]],
+        exc: Optional[BaseException],
+        tb: Any,
+    ) -> None:
         self.close()
 
 

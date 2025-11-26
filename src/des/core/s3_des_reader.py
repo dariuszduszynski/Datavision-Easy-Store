@@ -81,7 +81,9 @@ class S3DesReader:
 
     def _get_head(self) -> Dict[str, Any]:
         """Get S3 object metadata (HEAD)."""
-        return cast(Dict[str, Any], self.s3.head_object(Bucket=self.bucket, Key=self.key))
+        return cast(
+            Dict[str, Any], self.s3.head_object(Bucket=self.bucket, Key=self.key)
+        )
 
     def _range_get(self, offset: int, length: int) -> bytes:
         """

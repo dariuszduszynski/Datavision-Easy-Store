@@ -311,7 +311,9 @@ class SourceDatabaseConnector:
         table = self._table
 
         if cols.status is None:
-            raise ValueError("status column must be configured for marking packed files")
+            raise ValueError(
+                "status column must be configured for marking packed files"
+            )
 
         now = datetime.now(timezone.utc)
 
@@ -363,7 +365,9 @@ class SourceDatabaseConnector:
         table = self._table
 
         if cols.status is None:
-            raise ValueError("status column must be configured for marking failed files")
+            raise ValueError(
+                "status column must be configured for marking failed files"
+            )
 
         with self.engine.begin() as conn:
             update_stmt = (
