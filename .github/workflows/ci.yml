@@ -1,62 +1,110 @@
-name: Python Quality Pipeline
+name: CI Pipeline
 
-# Kiedy uruchamiać pipeline?
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: [main, master]
   pull_request:
-    branches: [ "main", "master" ]
 
 jobs:
-  quality-check:
+  # ------------------------------------------------------------------
+  # ETAP 1: Statyczna analiza (Styl, Typy, Bezpieczeństwo)
+  # To najszybszy etap. Jeśli tu coś padnie, oszczędzamy czas serwera.
+  # ------------------------------------------------------------------
+  quality-checks:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.12" # Możesz testować na kilku wersjach
-
     steps:
-      # 1. Pobranie kodu z repozytorium
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      # 2. Instalacja Pythona
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
-          cache: 'pip' # Cache'owanie przyspiesza instalację przy kolejnych uruchomieniach
+          python-version: "3.12" # Używamy najnowszej wersji do lintowania
+          cache: 'pip'
 
-      # 3. Instalacja narzędzi i zależności projektu
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          # Instalacja naszych narzędzi
-          pip install ruff mypy bandit pip-audit pytest pytest-cov
-          # Instalacja zależności twojego projektu (jeśli masz plik requirements.txt)
+          # Instalujemy narzędzia do jakości (nawet jeśli nie ma ich w requirements)
+          pip install ruff mypy bandit pip-audit types-requests
+          
+          # Instalujemy zależności projektu (potrzebne dla mypy, żeby widział typy bibliotek)
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          # LUB jeśli to paczka, zainstaluj ją w trybie edytowalnym:
-          # pip install -e .
+          if [ -f setup.py ]; then pip install -e .; fi
+          if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
 
-      # 4. RUFF - Formatowanie i Linting
-      # Używamy flagi --check, żeby Ruff tylko zgłaszał błędy, a nie zmieniał plików
-      - name: Lint and Format with Ruff
+      - name: Ruff Lint & Format Check
         run: |
-          echo "Sprawdzanie formatowania..."
+          # --check sprawdzi formatowanie bez zmieniania plików (zgłosi błąd)
           ruff format --check .
-          echo "Sprawdzanie błędów (Linter)..."
           ruff check .
 
-      # 5. MYPY - Statyczne typowanie
-      - name: Static Type Check with Mypy
+      - name: Mypy Static Type Check
         run: mypy .
 
-      # 6. SECURITY - Audyt kodu i paczek
       - name: Security Checks
         run: |
-          echo "Analiza kodu (Bandit)..."
+          # Bandit: szuka luk w kodzie (wykluczamy testy)
           bandit -r . --exclude tests
-          echo "Analiza zależności (Pip-audit)..."
+          # Pip-audit: szuka luk w zainstalowanych bibliotekach
           pip-audit
 
-      # 7. TESTY - Pytest
-      - name: Run Tests with Pytest
-        run: pytest --cov=. --cov-report=xml
+  # ------------------------------------------------------------------
+  # ETAP 2: Testy Jednostkowe
+  # Uruchamiają się TYLKO, gdy 'quality-checks' zakończą się sukcesem.
+  # ------------------------------------------------------------------
+  unit-tests:
+    needs: quality-checks # KLUCZOWE: Czekaj na sukces poprzedniego kroku
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          if [ -f setup.py ]; then pip install -e .; fi
+          if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
+
+      - name: Run unit tests with coverage
+        # Zachowałem Twoje ustawienia coverage dla src/des
+        run: pytest -m "not integration" --cov=src/des --cov-report=term-missing --cov-report=xml
+
+  # ------------------------------------------------------------------
+  # ETAP 3: Testy Integracyjne
+  # Uruchamiają się TYLKO, gdy testy jednostkowe przejdą.
+  # ------------------------------------------------------------------
+  integration-tests:
+    needs: unit-tests # KLUCZOWE: Czekaj na sukces testów jednostkowych
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11" # Zachowałem Twoją wersję 3.11 dla testów integracyjnych
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          if [ -f setup.py ]; then pip install -e .; fi
+          if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
+
+      # TODO: Add service setup here if integration tests need Redis/DB/etc.
+      # np:
+      # - name: Start Redis
+      #   uses: supercharge/redis-github-action@1.7.0
+
+      - name: Run integration tests
+        run: pytest -m integration
