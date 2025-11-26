@@ -8,7 +8,8 @@ from typing import Any
 class HeartbeatManager:
     """Manage heartbeat for claimed files."""
 
-    def __init__(self, db_connector: Any, pod_name: str) -> None: ...
+    def __init__(self, db_connector: Any, pod_name: str) -> None:
+        ...
 
     def start(self) -> None:
         """Start heartbeat thread."""

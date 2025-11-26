@@ -94,16 +94,16 @@ def test_daily_store_simple_pack(tmp_path: Path) -> None:
                 seen[fname] = (data, meta.get("original_name"))
 
     # Check we found all generated files
-    assert set(seen.keys()) == set(generated_names.keys()), (
-        f"Expected files: {set(generated_names.keys())}, found: {set(seen.keys())}"
-    )
+    assert set(seen.keys()) == set(
+        generated_names.keys()
+    ), f"Expected files: {set(generated_names.keys())}, found: {set(seen.keys())}"
 
     # Verify data matches
     for gen_name, (expected_data, orig_name) in generated_names.items():
         found_data, found_orig_name = seen[gen_name]
-        assert found_data == expected_data, (
-            f"Data mismatch for {gen_name} (original: {orig_name})"
-        )
+        assert (
+            found_data == expected_data
+        ), f"Data mismatch for {gen_name} (original: {orig_name})"
         assert found_orig_name == orig_name, f"Metadata mismatch for {gen_name}"
 
 

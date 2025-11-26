@@ -150,9 +150,9 @@ class DesWriter:
         if should_externalize:
             meta_dict["is_external"] = True
             if self.s3_prefix:
-                meta_dict["external_key"] = (
-                    f"{self.s3_prefix}/{EXTERNAL_FILES_FOLDER}/{name}"
-                )
+                meta_dict[
+                    "external_key"
+                ] = f"{self.s3_prefix}/{EXTERNAL_FILES_FOLDER}/{name}"
 
         meta_bytes = json.dumps(meta_dict, separators=(",", ":")).encode("utf-8")
 
