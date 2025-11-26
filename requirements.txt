@@ -1,3 +1,9 @@
 boto3>=1.34,<2.0
 botocore>=1.34,<2.0
 redis>=5.0,<6.0
+# SQLAlchemy + drivers
+SQLAlchemy>=2.0.0
+psycopg2-binary>=2.9.0  # PostgreSQL
+pymysql>=1.1.0          # MySQL/MariaDB
+cx_Oracle>=8.3.0        # Oracle
+pymssql>=2.2.0          # MSSQL

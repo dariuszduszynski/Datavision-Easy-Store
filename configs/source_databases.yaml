@@ -1,0 +1,165 @@
+# configs/source_databases.yaml
+
+sources:
+  # Oracle Database
+  - name: "production-oracle"
+    enabled: true
+    
+    connection:
+      type: oracle
+      host: oracle-prod.example.com
+      port: 1521
+      database: PRODDB
+      username: des_reader
+      password: "${ORACLE_PASSWORD}"  # From env variable
+      schema: FILES_SCHEMA
+      
+      pool_size: 10
+      pool_recycle: 3600
+      pool_pre_ping: true
+      
+      driver_options:
+        threaded: true
+    
+    table:
+      name: uploaded_files
+      schema: FILES_SCHEMA
+      
+      columns:
+        id: file_id
+        s3_bucket: bucket_name
+        s3_key: object_key
+        size_bytes: file_size
+        status: processing_status
+        created_at: upload_date
+        
+        metadata_columns:
+          user_id: uploaded_by_user_id
+          mime_type: content_type
+          original_filename: original_name
+      
+      where_clause: "upload_date >= SYSDATE - 30"  # Last 30 days
+      status_pending_value: "uploaded"
+      status_claimed_value: "packing"
+      
+      shard_key_column: object_key
+    
+    batch_size: 200
+    claim_timeout_seconds: 600
+    shard_bits: 8
+
+  # MSSQL Database
+  - name: "archive-mssql"
+    enabled: true
+    
+    connection:
+      type: mssql
+      host: mssql.example.com
+      port: 1433
+      database: ArchiveDB
+      username: des_service
+      password: "${MSSQL_PASSWORD}"
+      
+      pool_size: 5
+      
+      driver_options:
+        charset: utf8
+    
+    table:
+      name: FileArchive
+      schema: dbo
+      
+      columns:
+        id: FileID
+        s3_bucket: S3Bucket
+        s3_key: S3Key
+        size_bytes: FileSizeBytes
+        status: Status
+        created_at: CreatedAt
+        
+        metadata_columns:
+          department: Department
+          retention_days: RetentionDays
+      
+      status_pending_value: "pending"
+      status_claimed_value: "claimed"
+    
+    batch_size: 100
+    shard_bits: 6
+
+  # MySQL Database
+  - name: "media-mysql"
+    enabled: false  # Disabled for now
+    
+    connection:
+      type: mysql
+      host: mysql-media.example.com
+      port: 3306
+      database: media_storage
+      username: des_user
+      password: "${MYSQL_PASSWORD}"
+      charset: utf8mb4
+      
+      pool_size: 8
+      pool_pre_ping: true
+    
+    table:
+      name: media_files
+      
+      columns:
+        id: id
+        s3_bucket: storage_bucket
+        s3_key: storage_path
+        size_bytes: size
+        status: state
+        
+        metadata_columns:
+          content_type: mime_type
+          uploader: user_email
+      
+      status_pending_value: "new"
+      status_claimed_value: "processing"
+    
+    batch_size: 150
+    shard_bits: 8
+
+  # PostgreSQL Database
+  - name: "documents-postgres"
+    enabled: true
+    
+    connection:
+      type: postgres
+      host: postgres.example.com
+      port: 5432
+      database: documents
+      username: des_readonly
+      password: "${POSTGRES_PASSWORD}"
+      schema: public
+      
+      pool_size: 10
+      pool_recycle: 1800
+      pool_pre_ping: true
+    
+    table:
+      name: document_storage
+      schema: public
+      
+      columns:
+        id: doc_id
+        s3_bucket: bucket
+        s3_key: s3_path
+        size_bytes: size_bytes
+        status: status
+        created_at: created_at
+        
+        metadata_columns:
+          document_type: doc_type
+          category: category
+          tags: tags  # JSON field
+      
+      where_clause: "created_at >= NOW() - INTERVAL '90 days'"
+      status_pending_value: "uploaded"
+      status_claimed_value: "claimed"
+    
+    batch_size: 200
+    shard_bits: 8
