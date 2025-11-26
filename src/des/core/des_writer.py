@@ -4,7 +4,6 @@ DesWriter with support for external big files.
 import io
 import json
 import os
-import re
 import struct
 from typing import BinaryIO, List, Optional
 
@@ -167,10 +166,18 @@ class DesWriter:
     
     def _validate_filename(self, name: str):
         """
-        Validate filename (SnowFlake ID format expected).
+        Validate filename.
         
-        Valid format: PREFIX_YYYYMMDD_XXXXXXXXXXXX_CC
-        Example: IMG_20250115_1A2B3C4D5E6F_01
+        Allows:
+        - Alphanumeric characters
+        - Spaces
+        - Common separators: _ - . () []
+        
+        Valid examples:
+        - "IMG_20250115_1A2B3C4D5E6F_01"
+        - "TEST_20251126_(BF785FEA0100_81)"
+        - "notes with_space.txt"
+        - "report [final].pdf"
         """
         if not name:
             raise ValueError("Filename cannot be empty")
@@ -178,20 +185,24 @@ class DesWriter:
         # Check byte length
         name_bytes = name.encode("utf-8")
         if len(name_bytes) > MAX_FILENAME_LENGTH:
-            raise ValueError(f"Filename too long: {len(name_bytes)} bytes (max {MAX_FILENAME_LENGTH})")
-        
-        # Check for invalid characters (S3 best practices)
-        # Allow: alphanumeric, underscore, dash, period
-        if not re.match(r'^[a-zA-Z0-9_\-\.]+$', name):
             raise ValueError(
-                f"Invalid filename: {name!r} (allowed: alphanumeric, _, -, .)"
+                f"Filename too long: {len(name_bytes)} bytes (max {MAX_FILENAME_LENGTH})"
             )
         
-        # Warn if doesn't look like SnowFlake ID (but don't fail)
-        # Expected pattern: PREFIX_YYYYMMDD_XXXXXXXXXXXX_CC
-        if not re.match(r'^[A-Z]+_\d{8}_[A-F0-9]{12}_\d{2}$', name):
-            # This is just a warning - allow other formats
-            pass
+        # Check for invalid characters
+        # Allow: alphanumeric, space, underscore, dash, period, parentheses, brackets
+        # Disallow: / \ : * ? " < > | (filesystem unsafe)
+        invalid_chars = set('/\\:*?"<>|')
+        if any(c in invalid_chars for c in name):
+            raise ValueError(
+                f"Invalid filename: {name!r} (contains forbidden characters: / \\ : * ? \" < > |)"
+            )
+        
+        # Ensure only printable ASCII or valid UTF-8
+        try:
+            name.encode('utf-8')
+        except UnicodeEncodeError:
+            raise ValueError(f"Invalid filename: {name!r} (contains invalid Unicode)")
     
     def _upload_external_file(self, name: str, data: bytes):
         """

@@ -4,7 +4,16 @@ import os
 import struct
 from typing import BinaryIO, Dict, List, Optional, Sequence
 
-from des.core.constants import *
+from des.core.constants import (
+    FOOTER_SIZE,
+    FOOTER_STRUCT,
+    FOOTER_MAGIC,
+    VERSION,
+    ENTRY_FIXED_SIZE,
+    ENTRY_FIXED_STRUCT,
+    FLAG_IS_EXTERNAL,
+    DEFAULT_MAX_GAP_SIZE,
+)
 from des.core.models import IndexEntry, DesStats
 from des.core.cache import IndexCacheBackend
 
@@ -195,6 +204,113 @@ class DesReader:
         self._f.seek(entry.data_offset)
         return self._f.read(entry.data_length)
 
+    def get_files_batch(
+        self,
+        names: Sequence[str],
+        max_gap_size: int = DEFAULT_MAX_GAP_SIZE,
+    ) -> Dict[str, bytes]:
+        """
+        Batch read multiple files with gap merging optimization.
+        
+        Adjacent files are merged into single read if gap < max_gap_size.
+        
+        Args:
+            names: Sequence of filenames to retrieve
+            max_gap_size: Maximum gap between files to merge (bytes)
+        
+        Returns:
+            Dict mapping filename to content (missing files are skipped)
+        
+        Raises:
+            TypeError: If names is a string instead of sequence
+        """
+        if isinstance(names, str):
+            raise TypeError("names must be a sequence of file names, not string")
+        
+        self._load_index()
+        
+        # Filter existing entries and sort by offset
+        entries = []
+        for name in names:
+            entry = self._index_by_name.get(name)
+            if entry:
+                entries.append(entry)
+        
+        if not entries:
+            return {}
+        
+        entries.sort(key=lambda e: e.data_offset)
+        
+        # Group adjacent entries for batch reading
+        batches = self._group_entries(entries, max_gap_size)
+        
+        # Fetch batches
+        results = {}
+        for batch in batches:
+            if not batch:
+                continue
+            
+            # Calculate range for entire batch
+            first = batch[0]
+            last = batch[-1]
+            start_offset = first.data_offset
+            end_offset = last.data_offset + last.data_length
+            batch_length = end_offset - start_offset
+            
+            # Read entire batch
+            self._f.seek(start_offset)
+            batch_data = self._f.read(batch_length)
+            
+            # Split by individual files
+            for entry in batch:
+                file_start = entry.data_offset - start_offset
+                file_end = file_start + entry.data_length
+                results[entry.name] = batch_data[file_start:file_end]
+        
+        return results
+
+    def _group_entries(
+        self,
+        entries: List[IndexEntry],
+        max_gap_size: int
+    ) -> List[List[IndexEntry]]:
+        """
+        Group adjacent entries for batch reading.
+        
+        Files are grouped if gap between them is < max_gap_size.
+        
+        Args:
+            entries: List of IndexEntry (must be sorted by data_offset)
+            max_gap_size: Maximum gap to merge (bytes)
+        
+        Returns:
+            List of groups (each group is List[IndexEntry])
+        """
+        if not entries:
+            return []
+        
+        batches = []
+        current_batch = [entries[0]]
+        
+        for entry in entries[1:]:
+            prev_entry = current_batch[-1]
+            prev_end = prev_entry.data_offset + prev_entry.data_length
+            gap = entry.data_offset - prev_end
+            
+            if gap <= max_gap_size:
+                # Merge into current batch
+                current_batch.append(entry)
+            else:
+                # Start new batch
+                batches.append(current_batch)
+                current_batch = [entry]
+        
+        # Add last batch
+        if current_batch:
+            batches.append(current_batch)
+        
+        return batches
+
     def get_meta(self, name: str) -> dict:
         self._load_index()
         entry = self._index_by_name.get(name)
@@ -206,6 +322,37 @@ class DesReader:
         if not raw:
             return {}
         return json.loads(raw.decode("utf-8"))
+
+    def get_stats(self) -> DesStats:
+        """
+        Get archive statistics.
+        
+        Returns:
+            DesStats with file counts and sizes
+        """
+        self._load_index()
+        
+        internal_count = 0
+        external_count = 0
+        internal_size = 0
+        external_size = 0
+        
+        for entry in self._index_by_name.values():
+            if entry.flags & FLAG_IS_EXTERNAL:
+                external_count += 1
+                external_size += entry.data_length
+            else:
+                internal_count += 1
+                internal_size += entry.data_length
+        
+        return DesStats(
+            total_files=len(self._index_by_name),
+            internal_files=internal_count,
+            external_files=external_count,
+            internal_size_bytes=internal_size,
+            external_size_bytes=external_size,
+            archive_size_bytes=self.file_size,
+        )
 
     def __contains__(self, name: str) -> bool:
         self._load_index()

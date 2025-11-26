@@ -53,14 +53,20 @@ def test_snowflake_monotonicity(monkeypatch) -> None:
 
 def test_daily_store_simple_pack(tmp_path: Path) -> None:
     store = DailyShardedDesStore(base_dir=tmp_path, shard_bits=4, node_id=1, prefix="TEST")
+    
+    # Store original data with metadata containing original filenames
     inputs = {
         "file1.txt": b"hello",
         "file2.bin": b"\x00\x01",
         "file three.txt": b"world",
     }
-
-    for name, data in inputs.items():
-        store.add_file(data, meta={"name": name}, ext=None)
+    
+    # Track generated names -> original data
+    generated_names = {}
+    for orig_name, data in inputs.items():
+        logical_name, _ = store.add_file(data, meta={"original_name": orig_name}, ext=None)
+        generated_names[logical_name] = (data, orig_name)
+    
     store.close()
 
     today = date.today().isoformat()
@@ -70,15 +76,26 @@ def test_daily_store_simple_pack(tmp_path: Path) -> None:
     des_files = list(day_dir.glob("*.des"))
     assert des_files
 
+    # Verify all files are present with correct data
     seen = {}
     for des_file in des_files:
         with DesReader(str(des_file)) as reader:
             for fname in reader.list_files():
-                seen[fname] = reader.get_file(fname)
+                data = reader.get_file(fname)
+                meta = reader.get_meta(fname)
+                seen[fname] = (data, meta.get("original_name"))
 
-    assert set(seen.keys()) == set(inputs.keys())
-    for name, data in inputs.items():
-        assert seen[name] == data
+    # Check we found all generated files
+    assert set(seen.keys()) == set(generated_names.keys()), \
+        f"Expected files: {set(generated_names.keys())}, found: {set(seen.keys())}"
+    
+    # Verify data matches
+    for gen_name, (expected_data, orig_name) in generated_names.items():
+        found_data, found_orig_name = seen[gen_name]
+        assert found_data == expected_data, \
+            f"Data mismatch for {gen_name} (original: {orig_name})"
+        assert found_orig_name == orig_name, \
+            f"Metadata mismatch for {gen_name}"
 
 
 def test_daily_store_rollover_between_days(tmp_path: Path, monkeypatch) -> None:
