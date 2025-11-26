@@ -1,4 +1,3 @@
-import sys
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
@@ -6,11 +5,6 @@ import boto3
 import pytest
 from moto import mock_aws
 from sqlalchemy import insert, select, text
-
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-SRC_DIR = PROJECT_ROOT / "src"
-if str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
 
 from des.core.des_writer import DesWriter
 from des.db.connector import DesContainer, DesDbConnector, ShardLock

@@ -1,20 +1,27 @@
-"""
-DesWriter with support for external big files.
-"""
+"""DesWriter with support for external big files."""
+
+from __future__ import annotations
 
 import io
 import json
 import os
 import struct
-from typing import BinaryIO, List, Optional
+from typing import Any, BinaryIO, Dict, List, Optional
 
-from des.core.constants import *
-from des.core.models import IndexEntry, ExternalFileInfo
-
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    pass
+from des.core.constants import (
+    DEFAULT_BIG_FILE_THRESHOLD,
+    ENTRY_FIXED_STRUCT,
+    EXTERNAL_FILES_FOLDER,
+    FLAG_IS_EXTERNAL,
+    FOOTER_MAGIC,
+    FOOTER_STRUCT,
+    HEADER_MAGIC,
+    HEADER_STRUCT,
+    MAX_FILENAME_LENGTH,
+    MAX_META_SIZE,
+    VERSION,
+)
+from des.core.models import ExternalFileInfo, IndexEntry
 
 
 class DesWriter:
@@ -89,9 +96,9 @@ class DesWriter:
         self,
         name: str,
         data: bytes,
-        meta: Optional[dict] = None,
+        meta: Optional[Dict[str, Any]] = None,
         force_external: bool = False,
-    ):
+    ) -> None:
         """
         Add file to DES archive.
 
@@ -124,7 +131,7 @@ class DesWriter:
         ) and self._external_storage_enabled
 
         if should_externalize:
-            # Big file → external storage
+            # Big file -> external storage
             self._upload_external_file(name, data)
             flags |= FLAG_IS_EXTERNAL
 
@@ -132,7 +139,7 @@ class DesWriter:
             data_offset = 0  # Not used for external files
 
         else:
-            # Normal file → internal storage
+            # Normal file -> internal storage
             data_offset = self._f.tell()
             self._f.write(data)
 
@@ -169,7 +176,7 @@ class DesWriter:
         )
         self._entries.append(entry)
 
-    def _validate_filename(self, name: str):
+    def _validate_filename(self, name: str) -> None:
         """
         Validate filename.
 
@@ -209,7 +216,7 @@ class DesWriter:
         except UnicodeEncodeError:
             raise ValueError(f"Invalid filename: {name!r} (contains invalid Unicode)")
 
-    def _upload_external_file(self, name: str, data: bytes):
+    def _upload_external_file(self, name: str, data: bytes) -> None:
         """
         Upload file to S3 external storage.
 
@@ -259,7 +266,7 @@ class DesWriter:
         """
         return list(self._external_files)
 
-    def get_stats(self) -> dict:
+    def get_stats(self) -> Dict[str, int]:
         """
         Get current writer statistics (before close).
 
@@ -287,7 +294,7 @@ class DesWriter:
             "external_size_bytes": external_size,
         }
 
-    def close(self):
+    def close(self) -> None:
         """
         Finalize DES archive.
 
@@ -353,7 +360,7 @@ class DesWriter:
 
         # Print summary
         stats = self.get_stats()
-        print(f"✓ DES archive created: {self.path}")
+        print(f"DES archive created: {self.path}")
         print(f"  Total files: {stats['total_files']}")
         print(
             f"  Internal: {stats['internal_files']} ({stats['internal_size_bytes']:,} bytes)"
@@ -362,10 +369,10 @@ class DesWriter:
             f"  External: {stats['external_files']} ({stats['external_size_bytes']:,} bytes)"
         )
 
-    def __enter__(self):
+    def __enter__(self) -> "DesWriter":
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type, exc_val, exc_tb) -> bool:
         if not self._closed:
             self.close()
         return False

@@ -120,7 +120,7 @@ def test_empty_archive():
         des_path = os.path.join(tmpdir, "empty.des")
 
         # Write empty
-        with DesWriter(des_path) as w:
+        with DesWriter(des_path):
             pass  # No files added
 
         print("✓ Created empty archive")

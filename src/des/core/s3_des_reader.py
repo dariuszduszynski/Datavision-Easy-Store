@@ -1,15 +1,26 @@
-"""
-S3DesReader with support for external big files.
-"""
+"""S3DesReader with support for external big files."""
+
+from __future__ import annotations
 
 import json
 import struct
-from typing import Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 import boto3
 
-from des.core.constants import *
-from des.core.models import IndexEntry, DesStats
+from des.core.constants import (
+    DEFAULT_MAX_GAP_SIZE,
+    ENTRY_FIXED_SIZE,
+    ENTRY_FIXED_STRUCT,
+    EXTERNAL_FILES_FOLDER,
+    FLAG_IS_EXTERNAL,
+    FOOTER_MAGIC,
+    FOOTER_SIZE,
+    FOOTER_STRUCT,
+    MIN_DES_FILE_SIZE,
+    VERSION,
+)
+from des.core.models import DesStats, IndexEntry
 
 from typing import TYPE_CHECKING
 
@@ -30,7 +41,7 @@ class S3DesReader:
         s3_client=None,
         cache: Optional["IndexCacheBackend"] = None,
         cache_key: Optional[str] = None,
-    ):
+    ) -> None:
         """
         Args:
             bucket: S3 bucket name
@@ -45,7 +56,7 @@ class S3DesReader:
         self._cache = cache
 
         # Parse base path for external files
-        # key: "2025-01-15/shard_00.des" → base_prefix: "2025-01-15"
+        # key: "2025-01-15/shard_00.des" -> base_prefix: "2025-01-15"
         self.base_prefix = "/".join(key.split("/")[:-1]) if "/" in key else ""
 
         # Get object metadata
@@ -68,7 +79,7 @@ class S3DesReader:
         self._index_by_name: Dict[str, IndexEntry] = {}
         self._cache_key = cache_key or self._default_cache_key()
 
-    def _get_head(self) -> dict:
+    def _get_head(self) -> Dict[str, Any]:
         """Get S3 object metadata (HEAD)."""
         return self.s3.head_object(Bucket=self.bucket, Key=self.key)
 
@@ -200,7 +211,7 @@ class S3DesReader:
 
         return results
 
-    def get_meta(self, name: str) -> dict:
+    def get_meta(self, name: str) -> Dict[str, Any]:
         """
         Get file metadata (always from DES, even for external files).
 
@@ -302,7 +313,7 @@ class S3DesReader:
 
     # ========== Internal helper methods ==========
 
-    def _parse_footer(self, data: bytes):
+    def _parse_footer(self, data: bytes) -> None:
         """Parse DES footer."""
         (
             magic,
@@ -324,7 +335,7 @@ class S3DesReader:
         if version != VERSION:
             raise ValueError(f"Unsupported DES version: {version} (expected {VERSION})")
 
-    def _load_index(self):
+    def _load_index(self) -> None:
         """Load index from cache or S3."""
         if self._index_loaded:
             return
