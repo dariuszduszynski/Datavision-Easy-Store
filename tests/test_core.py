@@ -9,14 +9,7 @@ import os
 import sys
 import tempfile
 
-# Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-
-from des.core import (
-    DesWriter,
-    DesReader,
-    InMemoryIndexCache,
-)
+from des.core import DesReader, DesWriter, InMemoryIndexCache
 
 
 def test_basic_write_read():
