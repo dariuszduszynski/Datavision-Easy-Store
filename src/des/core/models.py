@@ -1,9 +1,3 @@
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from des.core.cache import IndexCacheBackend
-
-
 """
 DES data models and structures.
 """

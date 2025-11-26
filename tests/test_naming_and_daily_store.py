@@ -12,7 +12,7 @@ if str(SRC_DIR) not in sys.path:
 
 from des.packer.daily_sharded_store import DailyShardedDesStore  # noqa: E402
 from des.utils.snowflake_name import SnowflakeNameConfig, SnowflakeNameGenerator  # noqa: E402
-from des.core.des_core import DesReader  # noqa: E402
+from des.core import DesReader  # noqa: E402
 
 
 def test_snowflake_basic_format(monkeypatch) -> None:

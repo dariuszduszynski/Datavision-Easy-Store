@@ -4,7 +4,7 @@ from datetime import date
 from pathlib import Path
 from typing import Optional, Tuple, Iterable
 
-from des.core.des_core import DesWriter
+from des.core import DesWriter
 from des.utils.snowflake_name import SnowflakeNameGenerator, SnowflakeNameConfig
 
 

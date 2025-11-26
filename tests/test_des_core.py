@@ -7,7 +7,7 @@ SRC_DIR = PROJECT_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from des.core.des_core import DesReader, DesWriter  # noqa: E402
+from des.core import DesReader, DesWriter  # noqa: E402
 
 
 def test_des_round_trip_basic(tmp_path: Path) -> None:

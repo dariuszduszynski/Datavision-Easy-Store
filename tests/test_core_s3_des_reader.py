@@ -13,7 +13,8 @@ SRC_DIR = PROJECT_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from des.core.des_core import DesReader, DesWriter, FOOTER_SIZE  # noqa: E402
+from des.core import DesReader, DesWriter  # noqa: E402
+from des.core.constants import FOOTER_SIZE  # noqa: E402
 from des.core.s3_des_reader import S3DesReader  # noqa: E402
 
 pytestmark = [pytest.mark.integration, pytest.mark.s3]

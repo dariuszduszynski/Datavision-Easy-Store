@@ -1,10 +1,14 @@
-"""
-Datavision Easy Store (DES) - Distributed archival system for small files.
-"""
+"""Datavision Easy Store (DES) - Distributed archival system."""
 
-from .core.des_core import DesWriter, DesReader, InMemoryIndexCache, RedisIndexCache
-from .core.s3_des_reader import S3DesReader
-from .utils.snowflake_name import SnowflakeNameGenerator
+from .core import (
+    DesWriter,
+    DesReader,
+    S3DesReader,
+    InMemoryIndexCache,
+    RedisIndexCache,
+    FLAG_IS_EXTERNAL,
+)
+from .utils import SnowflakeNameGenerator, SnowflakeNameConfig
 
 __all__ = [
     "DesWriter",
@@ -13,6 +17,8 @@ __all__ = [
     "InMemoryIndexCache",
     "RedisIndexCache",
     "SnowflakeNameGenerator",
+    "SnowflakeNameConfig",
+    "FLAG_IS_EXTERNAL",
 ]
 
 __version__ = "1.0.0"
