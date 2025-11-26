@@ -1,0 +1,20 @@
+[tool.ruff]
+# Długość linii (domyślnie 88, jak w Black)
+line-length = 88
+
+# Wersja Pythona, pod którą piszesz kod
+target-version = "py312"
+
+[tool.ruff.lint]
+# Wybór reguł:
+# E, W - błędy i ostrzeżenia (jak pycodestyle)
+# F - Pyflakes
+# I - isort (sortowanie importów)
+# B - flake8-bugbear (częste błędy)
+select = ["E", "W", "F", "I", "B"]
+
+# Ignorowanie specyficznych reguł (opcjonalne)
+ignore = []
+
+# Pozwól na autofix dla wszystkich reguł, które to wspierają
+fixable = ["ALL"]
