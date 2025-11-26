@@ -1,10 +1,10 @@
-# src/des/packer/source_provider.py
-
 """Source file providers for MultiShardPacker."""
+
+from __future__ import annotations
 
 import asyncio
 import logging
-from typing import List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 from des.db.source_config import MultiSourceConfig
 from des.db.source_connector import SourceDatabaseConnector
@@ -21,7 +21,7 @@ class PendingFile:
         shard_id: int,
         name: str,
         data: bytes,
-        meta: Optional[dict] = None,
+        meta: Optional[dict[str, Any]] = None,
     ):
         self.id = id
         self.shard_id = shard_id
@@ -41,7 +41,7 @@ class MultiSourceFileProvider:
     - Error handling & retry
     """
 
-    def __init__(self, config: MultiSourceConfig, s3_client, holder_id: str):
+    def __init__(self, config: MultiSourceConfig, s3_client: Any, holder_id: str):
         """
         Initialize provider.
 
@@ -55,7 +55,7 @@ class MultiSourceFileProvider:
         self.holder_id = holder_id
 
         # Initialize connectors
-        self.connectors = {}
+        self.connectors: Dict[str, SourceDatabaseConnector] = {}
         for source_config in config.get_enabled_sources():
             connector = SourceDatabaseConnector(source_config)
             self.connectors[source_config.name] = connector
@@ -64,7 +64,7 @@ class MultiSourceFileProvider:
             f"Initialized provider with {len(self.connectors)} source databases"
         )
 
-    def connect_all(self):
+    def connect_all(self) -> None:
         """Connect to all enabled source databases."""
         for name, connector in self.connectors.items():
             try:
@@ -73,7 +73,7 @@ class MultiSourceFileProvider:
                 logger.error(f"Failed to connect to {name}: {e}")
                 raise
 
-    def disconnect_all(self):
+    def disconnect_all(self) -> None:
         """Disconnect from all databases."""
         for connector in self.connectors.values():
             try:
@@ -97,7 +97,7 @@ class MultiSourceFileProvider:
         Returns:
             List of PendingFile ready for packing
         """
-        pending_files = []
+        pending_files: List[PendingFile] = []
         remaining = limit
 
         # Claim from each source until we have enough
@@ -129,7 +129,7 @@ class MultiSourceFileProvider:
                         filename = sf.s3_key.split("/")[-1]
 
                         # Create metadata
-                        meta = {
+                        meta: Dict[str, Any] = {
                             "source_db": name,
                             "source_file_id": sf.id,
                             "original_s3_bucket": sf.s3_bucket,
@@ -188,11 +188,12 @@ class MultiSourceFileProvider:
         loop = asyncio.get_event_loop()
 
         # Run boto3 in thread pool
-        resp = await loop.run_in_executor(
+        resp: Dict[str, Any] = await loop.run_in_executor(
             None, lambda: self.s3.get_object(Bucket=bucket, Key=key)
         )
 
-        return resp["Body"].read()
+        body = resp["Body"]
+        return cast(bytes, body.read())
 
     async def mark_files_packed(
         self,
@@ -200,7 +201,7 @@ class MultiSourceFileProvider:
         file_ids: List[int],
         des_names: List[str],
         container_id: int,
-    ):
+    ) -> None:
         """
         Mark files as packed in source database.
 
@@ -222,9 +223,9 @@ class MultiSourceFileProvider:
             container_id=container_id,
         )
 
-    def get_all_stats(self) -> dict:
+    def get_all_stats(self) -> Dict[str, Any]:
         """Get stats from all source databases."""
-        all_stats = {}
+        all_stats: Dict[str, Any] = {}
 
         for name, connector in self.connectors.items():
             try:
@@ -236,11 +237,16 @@ class MultiSourceFileProvider:
 
         return all_stats
 
-    def __enter__(self):
+    def __enter__(self) -> "MultiSourceFileProvider":
         """Context manager entry."""
         self.connect_all()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self,
+        exc_type: Optional[type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Any,
+    ) -> None:
         """Context manager exit."""
         self.disconnect_all()

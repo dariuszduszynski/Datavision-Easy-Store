@@ -1,17 +1,16 @@
-"""
-Cache backends for DES index storage.
-"""
+"""Cache backends for DES index storage."""
+
+from __future__ import annotations
 
 import json
 import time
 from abc import ABC, abstractmethod
 from threading import Lock
-from typing import Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, Optional
 
 from des.core.models import IndexEntry
 
-if TYPE_CHECKING:
-    from des.core.cache import IndexCacheBackend
+__all__ = ["IndexCacheBackend", "InMemoryIndexCache", "RedisIndexCache", "NullCache"]
 
 
 class IndexCacheBackend(ABC):
@@ -35,7 +34,7 @@ class IndexCacheBackend(ABC):
         pass
 
     @abstractmethod
-    def set(self, key: str, entries: List[IndexEntry], ttl: Optional[int] = None):
+    def set(self, key: str, entries: List[IndexEntry], ttl: Optional[int] = None) -> None:
         """
         Store index entries in cache.
 
@@ -47,12 +46,12 @@ class IndexCacheBackend(ABC):
         pass
 
     @abstractmethod
-    def delete(self, key: str):
+    def delete(self, key: str) -> None:
         """Delete cache entry."""
         pass
 
     @abstractmethod
-    def clear(self):
+    def clear(self) -> None:
         """Clear all cache entries."""
         pass
 
@@ -69,7 +68,7 @@ class InMemoryIndexCache(IndexCacheBackend):
 
     def __init__(
         self, max_size: Optional[int] = None, default_ttl: Optional[int] = None
-    ):
+    ) -> None:
         """
         Args:
             max_size: Maximum number of cache entries (None = unlimited)
@@ -103,7 +102,7 @@ class InMemoryIndexCache(IndexCacheBackend):
 
             return entries
 
-    def set(self, key: str, entries: List[IndexEntry], ttl: Optional[int] = None):
+    def set(self, key: str, entries: List[IndexEntry], ttl: Optional[int] = None) -> None:
         """Thread-safe set with TTL and LRU eviction."""
         with self._lock:
             # Calculate expiry
@@ -124,7 +123,7 @@ class InMemoryIndexCache(IndexCacheBackend):
                 self._access_order.remove(key)
             self._access_order.append(key)
 
-    def delete(self, key: str):
+    def delete(self, key: str) -> None:
         """Thread-safe delete."""
         with self._lock:
             if key in self._cache:
@@ -132,13 +131,13 @@ class InMemoryIndexCache(IndexCacheBackend):
             if key in self._access_order:
                 self._access_order.remove(key)
 
-    def clear(self):
+    def clear(self) -> None:
         """Thread-safe clear all."""
         with self._lock:
             self._cache.clear()
             self._access_order.clear()
 
-    def get_stats(self) -> dict:
+    def get_stats(self) -> Dict[str, Any]:
         """Get cache statistics."""
         with self._lock:
             total = len(self._cache)
@@ -171,10 +170,10 @@ class RedisIndexCache(IndexCacheBackend):
 
     def __init__(
         self,
-        redis_client,
+        redis_client: Any,
         key_prefix: str = "des:index:",
         default_ttl: Optional[int] = None,
-    ):
+    ) -> None:
         """
         Args:
             redis_client: Redis client instance (redis.Redis)
@@ -234,7 +233,7 @@ class RedisIndexCache(IndexCacheBackend):
             self.redis.delete(redis_key)
             return None
 
-    def set(self, key: str, entries: List[IndexEntry], ttl: Optional[int] = None):
+    def set(self, key: str, entries: List[IndexEntry], ttl: Optional[int] = None) -> None:
         """Set to Redis with serialization and TTL."""
         redis_key = self._make_key(key)
         serialized = self._serialize(entries)
@@ -246,12 +245,12 @@ class RedisIndexCache(IndexCacheBackend):
         else:
             self.redis.set(redis_key, serialized)
 
-    def delete(self, key: str):
+    def delete(self, key: str) -> None:
         """Delete from Redis."""
         redis_key = self._make_key(key)
         self.redis.delete(redis_key)
 
-    def clear(self):
+    def clear(self) -> None:
         """Clear all keys with prefix (use with caution!)."""
         pattern = f"{self.key_prefix}*"
         cursor = 0
@@ -263,7 +262,7 @@ class RedisIndexCache(IndexCacheBackend):
             if cursor == 0:
                 break
 
-    def get_stats(self) -> dict:
+    def get_stats(self) -> Dict[str, Any]:
         """Get cache statistics (approximate)."""
         pattern = f"{self.key_prefix}*"
         cursor = 0
@@ -291,14 +290,14 @@ class NullCache(IndexCacheBackend):
     def get(self, key: str) -> Optional[List[IndexEntry]]:
         return None
 
-    def set(self, key: str, entries: List[IndexEntry], ttl: Optional[int] = None):
+    def set(self, key: str, entries: List[IndexEntry], ttl: Optional[int] = None) -> None:
         pass
 
-    def delete(self, key: str):
+    def delete(self, key: str) -> None:
         pass
 
-    def clear(self):
+    def clear(self) -> None:
         pass
 
-    def get_stats(self) -> dict:
+    def get_stats(self) -> Dict[str, Any]:
         return {"type": "null", "enabled": False}

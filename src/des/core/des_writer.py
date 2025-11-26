@@ -6,7 +6,7 @@ import io
 import json
 import os
 import struct
-from typing import Any, BinaryIO, Dict, List, Optional
+from typing import Any, BinaryIO, Dict, List, Optional, Literal
 
 from des.core.constants import (
     DEFAULT_BIG_FILE_THRESHOLD,
@@ -35,10 +35,10 @@ class DesWriter:
         self,
         path: str,
         big_file_threshold: int = DEFAULT_BIG_FILE_THRESHOLD,
-        s3_client=None,
+        s3_client: Any = None,
         bucket: Optional[str] = None,
         s3_prefix: Optional[str] = None,
-    ):
+    ) -> None:
         """
         Args:
             path: Local file path for DES archive (e.g. "/tmp/shard_00.des")
@@ -372,7 +372,7 @@ class DesWriter:
     def __enter__(self) -> "DesWriter":
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> bool:
+    def __exit__(self, exc_type: Optional[type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[Any]) -> Literal[False]:
         if not self._closed:
             self.close()
         return False

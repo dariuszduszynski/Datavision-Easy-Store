@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import struct
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, cast
 
 import boto3
 
@@ -38,7 +38,7 @@ class S3DesReader:
         self,
         bucket: str,
         key: str,
-        s3_client=None,
+        s3_client: Any = None,
         cache: Optional["IndexCacheBackend"] = None,
         cache_key: Optional[str] = None,
     ) -> None:
@@ -81,7 +81,7 @@ class S3DesReader:
 
     def _get_head(self) -> Dict[str, Any]:
         """Get S3 object metadata (HEAD)."""
-        return self.s3.head_object(Bucket=self.bucket, Key=self.key)
+        return cast(Dict[str, Any], self.s3.head_object(Bucket=self.bucket, Key=self.key))
 
     def _range_get(self, offset: int, length: int) -> bytes:
         """
@@ -95,12 +95,16 @@ class S3DesReader:
             bytes content
         """
         end = offset + length - 1
-        resp = self.s3.get_object(
-            Bucket=self.bucket,
-            Key=self.key,
-            Range=f"bytes={offset}-{end}",
+        resp: Dict[str, Any] = cast(
+            Dict[str, Any],
+            self.s3.get_object(
+                Bucket=self.bucket,
+                Key=self.key,
+                Range=f"bytes={offset}-{end}",
+            ),
         )
-        return resp["Body"].read()
+        body = resp["Body"]
+        return cast(bytes, body.read())
 
     def _external_get(self, name: str) -> bytes:
         """
@@ -122,8 +126,12 @@ class S3DesReader:
         )
 
         try:
-            resp = self.s3.get_object(Bucket=self.bucket, Key=external_key)
-            return resp["Body"].read()
+            resp: Dict[str, Any] = cast(
+                Dict[str, Any],
+                self.s3.get_object(Bucket=self.bucket, Key=external_key),
+            )
+            body = resp["Body"]
+            return cast(bytes, body.read())
         except self.s3.exceptions.NoSuchKey:
             raise KeyError(f"External file not found: {external_key}")
 
@@ -230,7 +238,7 @@ class S3DesReader:
             raise KeyError(f"File not found: {name}")
 
         raw = self._range_get(entry.meta_offset, entry.meta_length)
-        return json.loads(raw.decode("utf-8"))
+        return cast(Dict[str, Any], json.loads(raw.decode("utf-8")))
 
     def list_files(self, include_external: bool = True) -> List[str]:
         """

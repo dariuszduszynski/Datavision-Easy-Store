@@ -39,7 +39,7 @@ def async_retry(
             while True:
                 try:
                     return await func(*args, **kwargs)
-                except exc_tuple as exc:  # type: ignore[misc]
+                except exc_tuple as exc:
                     if attempt >= max_attempts:
                         raise exc
                     wait = backoff_base**attempt

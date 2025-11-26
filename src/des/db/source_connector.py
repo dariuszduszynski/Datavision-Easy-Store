@@ -2,24 +2,19 @@
 
 """Universal database connector for source databases."""
 
+from __future__ import annotations
+
 import logging
 from datetime import datetime, timezone
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional, cast
 
-from sqlalchemy import (
-    create_engine,
-    Table,
-    MetaData,
-    select,
-    update,
-    and_,
-    text,
-)
+from sqlalchemy import MetaData, Table, and_, create_engine, select, text, update
 from sqlalchemy.engine import Engine
 from sqlalchemy.pool import QueuePool
+from sqlalchemy.sql.elements import ColumnElement
 
-from des.db.source_config import SourceDatabaseConfig, DatabaseType
 from des.assignment.hash_routing import consistent_hash
+from des.db.source_config import DatabaseType, SourceDatabaseConfig
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +58,7 @@ class SourceDatabaseConnector:
         self.metadata = MetaData()
         self._table: Optional[Table] = None
 
-    def connect(self):
+    def connect(self) -> None:
         """Establish database connection."""
         if self.engine:
             logger.warning(f"Already connected to {self.config.name}")
@@ -93,14 +88,14 @@ class SourceDatabaseConnector:
 
         logger.info(f"✓ Connected to {self.config.name}")
 
-    def disconnect(self):
+    def disconnect(self) -> None:
         """Close database connection."""
         if self.engine:
             self.engine.dispose()
             self.engine = None
             logger.info(f"Disconnected from {self.config.name}")
 
-    def _reflect_table(self):
+    def _reflect_table(self) -> None:
         """Reflect table structure from database."""
         table_name = self.config.table.name
         schema = self.config.table.table_schema
@@ -207,11 +202,16 @@ class SourceDatabaseConnector:
         table = self._table
 
         # Build WHERE conditions
-        conditions = [table.c[cols.status] == self.config.table.status_pending_value]
+        if cols.status is None:
+            raise ValueError("status column must be configured for claiming files")
+        conditions: List[ColumnElement[bool]] = [
+            table.c[cols.status] == self.config.table.status_pending_value
+        ]
 
         # Add custom WHERE clause if specified
         if self.config.table.where_clause:
-            conditions.append(text(self.config.table.where_clause))
+            custom_where = text(self.config.table.where_clause)
+            conditions.append(cast(ColumnElement[bool], custom_where))
 
         with self.engine.begin() as conn:
             # Step 1: SELECT with row locking
@@ -295,7 +295,7 @@ class SourceDatabaseConnector:
 
     def mark_files_packed(
         self, file_ids: List[int], des_names: List[str], container_id: int
-    ):
+    ) -> None:
         """
         Mark files as successfully packed.
 
@@ -309,6 +309,9 @@ class SourceDatabaseConnector:
 
         cols = self.config.table.columns
         table = self._table
+
+        if cols.status is None:
+            raise ValueError("status column must be configured for marking packed files")
 
         now = datetime.now(timezone.utc)
 
@@ -345,7 +348,7 @@ class SourceDatabaseConnector:
 
         logger.info(f"Marked {len(file_ids)} files as packed in {self.config.name}")
 
-    def mark_files_failed(self, file_ids: List[int], error_message: str):
+    def mark_files_failed(self, file_ids: List[int], error_message: str) -> None:
         """
         Mark files as failed.
 
@@ -358,6 +361,9 @@ class SourceDatabaseConnector:
 
         cols = self.config.table.columns
         table = self._table
+
+        if cols.status is None:
+            raise ValueError("status column must be configured for marking failed files")
 
         with self.engine.begin() as conn:
             update_stmt = (
@@ -390,6 +396,9 @@ class SourceDatabaseConnector:
         cols = self.config.table.columns
         table = self._table
 
+        if cols.status is None:
+            raise ValueError("status column must be configured for statistics")
+
         with self.engine.connect() as conn:
             # Count by status
             from sqlalchemy import func
@@ -403,11 +412,16 @@ class SourceDatabaseConnector:
 
         return stats
 
-    def __enter__(self):
+    def __enter__(self) -> "SourceDatabaseConnector":
         """Context manager entry."""
         self.connect()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self,
+        exc_type: Optional[type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Any,
+    ) -> None:
         """Context manager exit."""
         self.disconnect()

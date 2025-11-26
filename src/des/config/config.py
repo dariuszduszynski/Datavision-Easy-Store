@@ -1,6 +1,6 @@
-"""
-Configuration management.
-"""
+"""Configuration management."""
+
+from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Optional
@@ -27,16 +27,16 @@ class MigrationConfig:
 
 
 class Config:
-    """
-    Main config loader - supports YAML, ENV, etc.
-    """
+    """Main config loader - supports YAML, ENV, etc."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.database: Optional[DatabaseConfig] = None
         self.migration: Optional[MigrationConfig] = None
 
     @classmethod
-    def from_yaml(cls, path: str): ...
+    def from_yaml(cls, path: str) -> "Config":
+        raise NotImplementedError("Config.from_yaml is not implemented in this stub.")
 
     @classmethod
-    def from_env(cls): ...
+    def from_env(cls) -> "Config":
+        raise NotImplementedError("Config.from_env is not implemented in this stub.")

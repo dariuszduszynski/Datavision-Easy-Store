@@ -1,19 +1,19 @@
-"""
-Daily rollover logic - finalizacja shardów o północy.
-"""
+"""Daily rollover logic - finalizing shards at midnight."""
+
+from __future__ import annotations
+
+from typing import Any
 
 
 class DailyRolloverManager:
-    """
-    Zarządza codzienną finalizacją i uploadem shardów.
-    """
+    """Manage daily shard finalization and upload."""
 
-    def __init__(self, packer): ...
+    def __init__(self, packer: Any) -> None: ...
 
-    def check_and_rollover(self):
-        """Sprawdź czy nowy dzień i wykonaj rollover"""
+    def check_and_rollover(self) -> None:
+        """Check whether a new day started and trigger rollover."""
         ...
 
-    def finalize_shard(self, shard_id, writer):
-        """Finalizuj i upload konkretny shard"""
+    def finalize_shard(self, shard_id: int, writer: Any) -> None:
+        """Finalize and upload a specific shard."""
         ...

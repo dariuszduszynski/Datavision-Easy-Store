@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 # datavision_easystore/daily_sharded_store.py
 import hashlib
 from datetime import date
 from pathlib import Path
-from typing import Optional, Tuple, Iterable
+from typing import Any, Iterable, Optional, Tuple
 
 from des.core import DesWriter
 from des.utils.snowflake_name import SnowflakeNameGenerator, SnowflakeNameConfig
@@ -90,7 +92,7 @@ class DailyShardedDesStore:
     def add_file(
         self,
         data: bytes,
-        meta: Optional[dict] = None,
+        meta: Optional[dict[str, Any]] = None,
         ext: Optional[str] = None,
     ) -> Tuple[str, Path]:
         """
@@ -110,7 +112,7 @@ class DailyShardedDesStore:
     def add_file_from_path(
         self,
         file_path: str | Path,
-        meta: Optional[dict] = None,
+        meta: Optional[dict[str, Any]] = None,
         keep_ext: bool = True,
     ) -> Tuple[str, Path]:
         """
@@ -123,15 +125,15 @@ class DailyShardedDesStore:
         logical_name, container_path = self.add_file(data, meta=meta, ext=ext)
         return logical_name, container_path
 
-    def close(self):
+    def close(self) -> None:
         for w in self._writers.values():
             w.close()
         self._writers.clear()
 
-    def __enter__(self):
+    def __enter__(self) -> "DailyShardedDesStore":
         return self
 
-    def __exit__(self, exc_type, exc, tb):
+    def __exit__(self, exc_type: Optional[type[BaseException]], exc: Optional[BaseException], tb: Any) -> None:
         self.close()
 
 

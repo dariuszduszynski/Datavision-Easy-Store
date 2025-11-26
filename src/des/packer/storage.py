@@ -1,13 +1,15 @@
 """Storage backends for DES packer."""
 
+from __future__ import annotations
+
 import asyncio
-from typing import Optional
+from typing import Any, Optional
 
 
 class S3StorageBackend:
     """Simple async wrapper around boto3 S3 uploads."""
 
-    def __init__(self, s3_client, bucket: str, prefix: Optional[str] = None):
+    def __init__(self, s3_client: Any, bucket: str, prefix: Optional[str] = None) -> None:
         self.s3 = s3_client
         self.bucket = bucket
         self.prefix = prefix.rstrip("/") if prefix else None

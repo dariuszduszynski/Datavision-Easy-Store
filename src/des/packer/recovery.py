@@ -23,7 +23,7 @@ Examples:
 
 import asyncio
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Set
+from typing import Any, Optional, Set
 
 import structlog
 from sqlalchemy import delete, select, text, update
@@ -48,7 +48,7 @@ class CrashRecoveryManager:
         self,
         db: DesDbConnector,
         *,
-        s3_client=None,
+        s3_client: Any = None,
         s3_bucket: Optional[str] = None,
         s3_prefix: Optional[str] = None,
         source_table: str = "source_files",
@@ -130,7 +130,7 @@ class CrashRecoveryManager:
             )
             await session.commit()
 
-        released = result.rowcount or 0
+        released = int(getattr(result, "rowcount", 0) or 0)
         RECOVERY_STALE_CLAIMS.inc(released)
         logger.info(
             "recovered_stale_claims",
@@ -219,7 +219,7 @@ class CrashRecoveryManager:
             result = await session.execute(stmt)
             await session.commit()
 
-        released = result.rowcount or 0
+        released = int(getattr(result, "rowcount", 0) or 0)
         RECOVERY_EXPIRED_LOCKS.inc(released)
         logger.info("released_expired_locks", released=released, cutoff=now.isoformat())
         return released

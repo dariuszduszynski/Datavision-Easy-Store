@@ -1,19 +1,19 @@
-"""
-Heartbeat management - utrzymywanie heartbeat dla claimed files.
-"""
+"""Heartbeat management - maintaining heartbeats for claimed files."""
+
+from __future__ import annotations
+
+from typing import Any
 
 
 class HeartbeatManager:
-    """
-    Zarządza heartbeat dla claimowanych plików.
-    """
+    """Manage heartbeat for claimed files."""
 
-    def __init__(self, db_connector, pod_name): ...
+    def __init__(self, db_connector: Any, pod_name: str) -> None: ...
 
-    def start(self):
-        """Start heartbeat thread"""
+    def start(self) -> None:
+        """Start heartbeat thread."""
         ...
 
-    def stop(self):
-        """Stop heartbeat gracefully"""
+    def stop(self) -> None:
+        """Stop heartbeat gracefully."""
         ...

@@ -1,5 +1,7 @@
 """Multi-shard DES packer with shard locking and day rollover."""
 
+from __future__ import annotations
+
 import asyncio
 import contextlib
 import os
@@ -8,7 +10,7 @@ import time
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional, Protocol
+from typing import Any, Dict, List, Optional, Protocol
 
 from botocore.exceptions import ClientError
 from des.core.des_writer import DesWriter
@@ -32,7 +34,7 @@ class PendingFile:
     shard_id: int
     name: str
     data: bytes
-    meta: Optional[dict] = None
+    meta: Optional[dict[str, Any]] = None
 
 
 class SourceFileProvider(Protocol):
@@ -63,7 +65,7 @@ class HeartbeatManager:
         self.shard_id = shard_id
         self.holder_id = holder_id
         self.ttl_seconds = ttl_seconds
-        self._task: Optional[asyncio.Task] = None
+        self._task: Optional[asyncio.Task[None]] = None
         self._stop = asyncio.Event()
 
     async def start(self) -> None:
@@ -98,13 +100,13 @@ class MultiShardPacker:
         db: DesDbConnector,
         storage: StorageBackend,
         shard_ids: List[int],
-        config: dict,
+        config: Optional[dict[str, Any]],
         source_provider: SourceFileProvider,
     ):
         self.db = db
         self.storage = storage
         self.shard_ids = shard_ids
-        self.cfg = config or {}
+        self.cfg: dict[str, Any] = config or {}
         self.source = source_provider
 
         self.batch_size = self.cfg.get("batch_size", 100)
@@ -119,7 +121,7 @@ class MultiShardPacker:
         )
         self.dest_prefix = self.cfg.get("dest_prefix", "")
 
-        self._writers: Dict[int, dict] = {}
+        self._writers: Dict[int, Dict[str, Any]] = {}
         self._heartbeats: Dict[int, HeartbeatManager] = {}
 
     async def run_forever(self) -> None:

@@ -4,7 +4,7 @@ import json
 import logging
 import os
 from datetime import date, datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 
 import boto3
 from fastapi import FastAPI, HTTPException, Response
@@ -38,7 +38,7 @@ logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger("des.assignment.service")
 
 
-def log_event(event: str, **fields) -> None:
+def log_event(event: str, **fields: Any) -> None:
     """Emit structured JSON logs."""
     payload = {"event": event, **fields}
     logger.info(json.dumps(payload, ensure_ascii=False))
@@ -46,7 +46,7 @@ def log_event(event: str, **fields) -> None:
 
 class AssignRequest(BaseModel):
     prefix: str
-    meta_hint: Optional[dict] = None  # reserved for future routing logic
+    meta_hint: Optional[dict[str, Any]] = None  # reserved for future routing logic
 
 
 class AssignResponse(BaseModel):
@@ -83,7 +83,7 @@ HEALTH_CHECKER = _build_health_checker()
 
 
 @app.get("/health")
-def health() -> dict:
+def health() -> dict[str, str]:
     """Health probe endpoint."""
     return {"status": "ok"}
 
@@ -97,7 +97,7 @@ def metrics() -> Response:
 
 
 @app.get("/health/live")
-def health_live() -> dict:
+def health_live() -> dict[str, int | str]:
     """Liveness probe with uptime reporting."""
     uptime = int((datetime.now(timezone.utc) - START_TIME).total_seconds())
     return {"status": "ok", "uptime": uptime}

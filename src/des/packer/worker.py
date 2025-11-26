@@ -1,13 +1,13 @@
-"""
-Worker thread logic - przetwarzanie batchy w wątkach.
-"""
+"""Worker thread logic - processing batches in threads."""
+
+from __future__ import annotations
+
+from typing import Any, Iterable
 
 
 class PackerWorker:
-    """
-    Worker który przetwarza batch plików w osobnym wątku.
-    """
+    """Worker that processes file batches in a separate thread."""
 
-    def __init__(self, packer, worker_id): ...
+    def __init__(self, packer: Any, worker_id: int) -> None: ...
 
-    def process_files(self, files): ...
+    def process_files(self, files: Iterable[Any]) -> None: ...

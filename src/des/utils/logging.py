@@ -3,11 +3,12 @@ from __future__ import annotations
 import logging
 import os
 from contextlib import contextmanager
-from typing import Any, Iterator
+from typing import Any, Iterator, cast
 
 import structlog
 from structlog.dev import ConsoleRenderer
 from structlog.stdlib import BoundLogger
+from structlog.types import Processor
 
 try:
     from des import __version__ as DES_VERSION
@@ -21,7 +22,7 @@ def _coerce_level(level: str | int) -> int:
         resolved = logging.getLevelName(level.upper())
         if isinstance(resolved, str):
             raise ValueError(f"Invalid log level: {level}")
-        return resolved
+        return int(resolved)
     return int(level)
 
 
@@ -31,7 +32,7 @@ def configure_logging(level: str | int = "INFO", json_output: bool = True) -> No
     timestamper = structlog.processors.TimeStamper(fmt="iso")
     renderer = structlog.processors.JSONRenderer() if json_output else ConsoleRenderer()
 
-    shared_processors = [
+    shared_processors: list[Processor] = [
         structlog.contextvars.merge_contextvars,
         structlog.stdlib.add_logger_name,
         structlog.stdlib.add_log_level,
@@ -68,7 +69,10 @@ def get_logger(name: str) -> BoundLogger:
     """Return a structlog logger with default service metadata bound."""
     service_name = os.getenv("SERVICE_NAME", "des")
     version = os.getenv("APP_VERSION", DES_VERSION)
-    return structlog.get_logger(name).bind(service_name=service_name, version=version)
+    return cast(
+        BoundLogger,
+        structlog.get_logger(name).bind(service_name=service_name, version=version),
+    )
 
 
 @contextmanager

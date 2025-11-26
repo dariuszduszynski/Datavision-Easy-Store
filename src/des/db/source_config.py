@@ -2,8 +2,11 @@
 
 """Configuration models for source database connections."""
 
+from __future__ import annotations
+
 from enum import Enum
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
+
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -47,11 +50,11 @@ class ColumnMapping(BaseModel):
 
     @field_validator("metadata_columns", mode="before")
     @classmethod
-    def validate_metadata_columns(cls, v):
+    def validate_metadata_columns(cls, v: Any) -> Dict[str, str]:
         """Ensure metadata column names are valid."""
         if v is None:
             return {}
-        return v
+        return dict(v)
 
 
 class DatabaseConnection(BaseModel):
@@ -82,7 +85,7 @@ class DatabaseConnection(BaseModel):
 
     @field_validator("port")
     @classmethod
-    def validate_port(cls, v, info):
+    def validate_port(cls, v: Optional[int], info: Any) -> int:
         """Set default port based on database type if not provided."""
         if v is None:
             db_type = info.data.get("type")
@@ -198,7 +201,7 @@ class SourceDatabaseConfig(BaseModel):
         return cls(**data)
 
     @classmethod
-    def from_dict(cls, data: dict) -> "SourceDatabaseConfig":
+    def from_dict(cls, data: Dict[str, Any]) -> "SourceDatabaseConfig":
         """Load configuration from dictionary."""
         return cls(**data)
 

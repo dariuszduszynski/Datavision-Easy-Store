@@ -1,9 +1,11 @@
 """DesReader for reading DES archives."""
 
+from __future__ import annotations
+
 import json
 import os
 import struct
-from typing import BinaryIO, Dict, List, Optional, Sequence
+from typing import Any, BinaryIO, Optional, Sequence, cast
 
 from des.core.constants import (
     FOOTER_SIZE,
@@ -14,8 +16,8 @@ from des.core.constants import (
     FLAG_IS_EXTERNAL,
     DEFAULT_MAX_GAP_SIZE,
 )
-from des.core.models import IndexEntry, DesStats
 from des.core.cache import IndexCacheBackend
+from des.core.models import DesStats, IndexEntry
 
 
 class DesReader:
@@ -28,16 +30,24 @@ class DesReader:
         path: str,
         cache: Optional[IndexCacheBackend] = None,
         cache_key: Optional[str] = None,
-    ):
+    ) -> None:
         self.path = path
         self._f: BinaryIO = open(path, "rb")
-        self._read_footer()
         self._cache = cache
         self._cache_key = cache_key or self._default_cache_key()
         self._index_loaded = False
-        self._index_by_name: Dict[str, IndexEntry] = {}
+        self._index_by_name: dict[str, IndexEntry] = {}
+        self.file_size: int = 0
+        self.data_start: int = 0
+        self.data_length: int = 0
+        self.meta_start: int = 0
+        self.meta_length: int = 0
+        self.index_start: int = 0
+        self.index_length: int = 0
+        self.file_count: int = 0
+        self._read_footer()
 
-    def _read_footer(self):
+    def _read_footer(self) -> None:
         self._f.seek(0, os.SEEK_END)
         file_size = self._f.tell()
         self.file_size = file_size
@@ -48,7 +58,7 @@ class DesReader:
         raw = self._f.read(FOOTER_SIZE)
         self._parse_footer(raw)
 
-    def _parse_footer(self, data: bytes):
+    def _parse_footer(self, data: bytes) -> None:
         """
         Parse and validate DES footer.
 
@@ -143,7 +153,7 @@ class DesReader:
             mtime = 0
         return f"DES:{os.path.abspath(self.path)}:{self.file_size}:{mtime}:{VERSION}"
 
-    def _load_index(self):
+    def _load_index(self) -> None:
         if self._index_loaded:
             return
 
@@ -156,7 +166,7 @@ class DesReader:
 
         self._f.seek(self.index_start)
         end = self.index_start + self.index_length
-        index: Dict[str, IndexEntry] = {}
+        index: dict[str, IndexEntry] = {}
 
         while self._f.tell() < end:
             # u16 filename_len
@@ -191,11 +201,11 @@ class DesReader:
         if self._cache and self._cache_key:
             self._cache.set(self._cache_key, list(index.values()))
 
-    def list_files(self) -> List[str]:
+    def list_files(self) -> list[str]:
         self._load_index()
         return list(self._index_by_name.keys())
 
-    def get_index(self) -> List[IndexEntry]:
+    def get_index(self) -> list[IndexEntry]:
         self._load_index()
         return list(self._index_by_name.values())
 
@@ -212,7 +222,7 @@ class DesReader:
         self,
         names: Sequence[str],
         max_gap_size: int = DEFAULT_MAX_GAP_SIZE,
-    ) -> Dict[str, bytes]:
+    ) -> dict[str, bytes]:
         """
         Batch read multiple files with gap merging optimization.
 
@@ -249,7 +259,7 @@ class DesReader:
         batches = self._group_entries(entries, max_gap_size)
 
         # Fetch batches
-        results = {}
+        results: dict[str, bytes] = {}
         for batch in batches:
             if not batch:
                 continue
@@ -274,8 +284,8 @@ class DesReader:
         return results
 
     def _group_entries(
-        self, entries: List[IndexEntry], max_gap_size: int
-    ) -> List[List[IndexEntry]]:
+        self, entries: list[IndexEntry], max_gap_size: int
+    ) -> list[list[IndexEntry]]:
         """
         Group adjacent entries for batch reading.
 
@@ -313,7 +323,7 @@ class DesReader:
 
         return batches
 
-    def get_meta(self, name: str) -> dict:
+    def get_meta(self, name: str) -> dict[str, Any]:
         self._load_index()
         entry = self._index_by_name.get(name)
         if entry is None:
@@ -323,7 +333,7 @@ class DesReader:
         raw = self._f.read(entry.meta_length)
         if not raw:
             return {}
-        return json.loads(raw.decode("utf-8"))
+        return cast(dict[str, Any], json.loads(raw.decode("utf-8")))
 
     def get_stats(self) -> DesStats:
         """
@@ -360,12 +370,17 @@ class DesReader:
         self._load_index()
         return name in self._index_by_name
 
-    def close(self):
+    def close(self) -> None:
         if not self._f.closed:
             self._f.close()
 
-    def __enter__(self):
+    def __enter__(self) -> "DesReader":
         return self
 
-    def __exit__(self, exc_type, exc, tb):
+    def __exit__(
+        self,
+        exc_type: Optional[type[BaseException]],
+        exc: Optional[BaseException],
+        tb: Any,
+    ) -> None:
         self.close()

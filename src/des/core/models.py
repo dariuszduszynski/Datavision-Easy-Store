@@ -101,11 +101,12 @@ class DesStats:
     @staticmethod
     def _human_size(size_bytes: int) -> str:
         """Format bytes as human-readable string."""
+        value = float(size_bytes)
         for unit in ["B", "KB", "MB", "GB", "TB"]:
-            if size_bytes < 1024:
-                return f"{size_bytes:.1f}{unit}"
-            size_bytes /= 1024
-        return f"{size_bytes:.1f}PB"
+            if value < 1024:
+                return f"{value:.1f}{unit}"
+            value /= 1024
+        return f"{value:.1f}PB"
 
 
 @dataclass
@@ -124,7 +125,7 @@ class DesFooter:
     index_length: int
     file_count: int
 
-    def validate(self):
+    def validate(self) -> None:
         """Validate footer integrity."""
         from des.core.constants import FOOTER_MAGIC, VERSION
 
