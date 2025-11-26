@@ -25,8 +25,8 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          # Instalujemy narzędzia do jakości (nawet jeśli nie ma ich w requirements)
-          pip install ruff mypy bandit pip-audit types-requests
+          # Instalujemy narzędzia do jakości (spięte wersją z requirements-dev)
+          pip install ruff==0.1.6 mypy bandit pip-audit types-requests
           
           # Instalujemy zależności projektu (potrzebne dla mypy, żeby widział typy bibliotek)
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
