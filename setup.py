@@ -42,6 +42,7 @@ setup(
             "des=des.cli.main:cli",
             "des-name-assignment=scripts.run_name_assignment:main",
             "des-packer=scripts.run_packer:main",
+            "des-marker=des.cli.des_marker:main",
         ],
     },
     
