@@ -1,76 +1,15 @@
-"""
-DES Core - Binary container format for archiving files.
-"""
-
-# Core writers and readers
-from des.core.des_writer import DesWriter
-from des.core.des_reader import DesReader
-from des.core.s3_des_reader import S3DesReader
-
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from des.core.cache import IndexCacheBackend
-
-# Models
-from des.core.models import (
-    IndexEntry,
-    DesStats,
-    DesFooter,
-    ExternalFileInfo,
-)
-
-# Cache backends
-from des.core.cache import (
-    IndexCacheBackend,
+from .des_core import (
+    DesWriter,
+    DesReader,
     InMemoryIndexCache,
     RedisIndexCache,
-    NullCache,
 )
-
-# Constants
-from des.core.constants import (
-    HEADER_MAGIC,
-    FOOTER_MAGIC,
-    VERSION,
-    FLAG_IS_EXTERNAL,
-    FLAG_COMPRESSED,
-    FLAG_ENCRYPTED,
-    FLAG_DELETED,
-    DEFAULT_BIG_FILE_THRESHOLD,
-    DEFAULT_MAX_GAP_SIZE,
-    EXTERNAL_FILES_FOLDER,
-)
+from .s3_des_reader import S3DesReader
 
 __all__ = [
-    # Writers and readers
-    'DesWriter',
-    'DesReader',
-    'S3DesReader',
-    
-    # Models
-    'IndexEntry',
-    'DesStats',
-    'DesFooter',
-    'ExternalFileInfo',
-    
-    # Cache
-    'IndexCacheBackend',
-    'InMemoryIndexCache',
-    'RedisIndexCache',
-    'NullCache',
-    
-    # Constants
-    'HEADER_MAGIC',
-    'FOOTER_MAGIC',
-    'VERSION',
-    'FLAG_IS_EXTERNAL',
-    'FLAG_COMPRESSED',
-    'FLAG_ENCRYPTED',
-    'FLAG_DELETED',
-    'DEFAULT_BIG_FILE_THRESHOLD',
-    'DEFAULT_MAX_GAP_SIZE',
-    'EXTERNAL_FILES_FOLDER',
+    "DesWriter",
+    "DesReader",
+    "InMemoryIndexCache",
+    "RedisIndexCache",
+    "S3DesReader",
 ]
-
-__version__ = '1.0.0'
