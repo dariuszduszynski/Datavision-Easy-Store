@@ -17,8 +17,22 @@ from des.core.models import IndexEntry  # noqa: E402
 
 def _entries() -> List[IndexEntry]:
     return [
-        IndexEntry(name="file1", data_offset=0, data_length=5, meta_offset=100, meta_length=10, flags=0),
-        IndexEntry(name="file2", data_offset=5, data_length=3, meta_offset=110, meta_length=12, flags=1),
+        IndexEntry(
+            name="file1",
+            data_offset=0,
+            data_length=5,
+            meta_offset=100,
+            meta_length=10,
+            flags=0,
+        ),
+        IndexEntry(
+            name="file2",
+            data_offset=5,
+            data_length=3,
+            meta_offset=110,
+            meta_length=12,
+            flags=1,
+        ),
     ]
 
 

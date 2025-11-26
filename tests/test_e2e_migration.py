@@ -29,7 +29,9 @@ async def test_full_migration_flow(
     }
 
     for name, content in test_files.items():
-        s3_client_mock.put_object(Bucket="test-source", Key=f"buffer/{name}", Body=content)
+        s3_client_mock.put_object(
+            Bucket="test-source", Key=f"buffer/{name}", Body=content
+        )
 
     async with des_db.session_factory() as session:
         for idx, name in enumerate(test_files.keys(), start=1):
@@ -65,7 +67,9 @@ async def test_full_migration_flow(
                 pending = []
                 for row in rows:
                     obj = await asyncio.to_thread(
-                        self.s3.get_object, Bucket="test-source", Key=f"buffer/{row.name}"
+                        self.s3.get_object,
+                        Bucket="test-source",
+                        Key=f"buffer/{row.name}",
                     )
                     data = obj["Body"].read()
                     pending.append(
@@ -100,7 +104,9 @@ async def test_full_migration_flow(
 
     async with des_db.session_factory() as session:
         container = (
-            await session.execute(select(DesContainer).where(DesContainer.shard_id == shard_id))
+            await session.execute(
+                select(DesContainer).where(DesContainer.shard_id == shard_id)
+            )
         ).scalar_one_or_none()
         assert container is not None
         container_id = container.id

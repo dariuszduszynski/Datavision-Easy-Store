@@ -1,4 +1,5 @@
 """Tests for source file provider."""
+
 import sys
 from pathlib import Path
 from unittest.mock import Mock
@@ -25,7 +26,9 @@ from des.packer.source_provider import (  # noqa: E402
 )
 
 
-def make_source_config(name: str = "source1", enabled: bool = True) -> SourceDatabaseConfig:
+def make_source_config(
+    name: str = "source1", enabled: bool = True
+) -> SourceDatabaseConfig:
     return SourceDatabaseConfig(
         name=name,
         enabled=enabled,
@@ -95,6 +98,7 @@ def test_provider_initialization():
 @pytest.mark.unit
 async def test_provider_connect_and_disconnect_all(sample_source_config, monkeypatch):
     """Test connect/disconnect lifecycle and context manager."""
+
     class StubConnector:
         def __init__(self, cfg):
             self.config = cfg
@@ -129,6 +133,7 @@ async def test_provider_get_pending_files_builds_pending_file(
     sample_source_config, monkeypatch
 ):
     """Ensure provider claims, downloads, and wraps files."""
+
     class StubConnector:
         def __init__(self, cfg):
             self.config = cfg
@@ -165,9 +170,7 @@ async def test_provider_get_pending_files_builds_pending_file(
     )
 
     s3_mock = Mock()
-    s3_mock.get_object.return_value = {
-        "Body": Mock(read=Mock(return_value=b"content"))
-    }
+    s3_mock.get_object.return_value = {"Body": Mock(read=Mock(return_value=b"content"))}
 
     provider = MultiSourceFileProvider(
         config=MultiSourceConfig(sources=[sample_source_config]),
@@ -194,10 +197,9 @@ async def test_provider_get_pending_files_builds_pending_file(
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_provider_download_error_marks_failed(
-    sample_source_config, monkeypatch
-):
+async def test_provider_download_error_marks_failed(sample_source_config, monkeypatch):
     """Download failures should mark files as failed."""
+
     class StubConnector:
         def __init__(self, cfg):
             self.config = cfg
@@ -241,10 +243,9 @@ async def test_provider_download_error_marks_failed(
 
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_provider_mark_files_packed_delegates(
-    sample_source_config, monkeypatch
-):
+async def test_provider_mark_files_packed_delegates(sample_source_config, monkeypatch):
     """Ensure mark_files_packed delegates to connector."""
+
     class StubConnector:
         def __init__(self, cfg):
             self.config = cfg

@@ -1,4 +1,5 @@
 """Tests for source configuration models."""
+
 import sys
 from pathlib import Path
 

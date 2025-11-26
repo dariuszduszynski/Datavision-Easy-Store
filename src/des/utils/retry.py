@@ -42,7 +42,7 @@ def async_retry(
                 except exc_tuple as exc:  # type: ignore[misc]
                     if attempt >= max_attempts:
                         raise exc
-                    wait = backoff_base ** attempt
+                    wait = backoff_base**attempt
                     if jitter:
                         wait *= random.uniform(0.5, 1.5)
 

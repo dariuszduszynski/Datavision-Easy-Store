@@ -1,4 +1,3 @@
-import asyncio
 import sys
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -21,7 +20,7 @@ from des.packer.recovery import CrashRecoveryManager
 @pytest.fixture
 async def db_connector(tmp_path):
     """Async DB connector backed by temporary SQLite database."""
-    db_url = f"sqlite+aiosqlite:///{tmp_path/'crash_recovery.db'}"
+    db_url = f"sqlite+aiosqlite:///{tmp_path / 'crash_recovery.db'}"
     connector = DesDbConnector(db_url)
     await connector.init_models()
 
@@ -62,8 +61,18 @@ async def test_recover_stale_claims_basic(db_connector):
                 "VALUES (:id, :status, :claimed_by, :claimed_at)"
             ),
             [
-                {"id": 1, "status": "claimed", "claimed_by": "worker-1", "claimed_at": stale_time},
-                {"id": 2, "status": "claimed", "claimed_by": "worker-2", "claimed_at": stale_time},
+                {
+                    "id": 1,
+                    "status": "claimed",
+                    "claimed_by": "worker-1",
+                    "claimed_at": stale_time,
+                },
+                {
+                    "id": 2,
+                    "status": "claimed",
+                    "claimed_by": "worker-2",
+                    "claimed_at": stale_time,
+                },
             ],
         )
         await session.commit()
@@ -77,7 +86,9 @@ async def test_recover_stale_claims_basic(db_connector):
     async with db_connector.session_factory() as session:
         rows = (
             await session.execute(
-                text("SELECT status, claimed_by, claimed_at FROM source_files ORDER BY id")
+                text(
+                    "SELECT status, claimed_by, claimed_at FROM source_files ORDER BY id"
+                )
             )
         ).all()
 
@@ -97,8 +108,18 @@ async def test_recover_stale_claims_respects_active(db_connector):
                 "VALUES (:id, :status, :claimed_by, :claimed_at)"
             ),
             [
-                {"id": 1, "status": "claimed", "claimed_by": "worker-1", "claimed_at": stale_time},
-                {"id": 2, "status": "claimed", "claimed_by": "worker-2", "claimed_at": fresh_time},
+                {
+                    "id": 1,
+                    "status": "claimed",
+                    "claimed_by": "worker-1",
+                    "claimed_at": stale_time,
+                },
+                {
+                    "id": 2,
+                    "status": "claimed",
+                    "claimed_by": "worker-2",
+                    "claimed_at": fresh_time,
+                },
             ],
         )
         await session.commit()

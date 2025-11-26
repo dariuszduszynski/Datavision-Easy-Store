@@ -1,4 +1,5 @@
 """Hash-based shard routing utilities."""
+
 import hashlib
 
 

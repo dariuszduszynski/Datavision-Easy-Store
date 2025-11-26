@@ -56,8 +56,8 @@ def pack_buffer_directory(
 if __name__ == "__main__":
     # demo
     pack_buffer_directory(
-        buffer_dir="buffer",          # wrzuć tu pliki testowe
-        des_base_dir="data/des",      # tu powstaną katalogi YYYY-MM-DD /
+        buffer_dir="buffer",  # wrzuć tu pliki testowe
+        des_base_dir="data/des",  # tu powstaną katalogi YYYY-MM-DD /
         shard_bits=8,
         node_id=1,
     )

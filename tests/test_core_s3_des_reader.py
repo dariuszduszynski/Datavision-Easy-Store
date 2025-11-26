@@ -33,7 +33,9 @@ class CountingS3Client:
         return self.client.get_object(**kwargs)
 
 
-def _make_stubbed_client(des_bytes: bytes, bucket: str, key: str, ranges: list[tuple[int, int]]):
+def _make_stubbed_client(
+    des_bytes: bytes, bucket: str, key: str, ranges: list[tuple[int, int]]
+):
     s3 = boto3.client("s3", region_name="us-east-1")
     stubber = Stubber(s3)
 
@@ -49,7 +51,11 @@ def _make_stubbed_client(des_bytes: bytes, bucket: str, key: str, ranges: list[t
         stubber.add_response(
             "get_object",
             {"Body": body},
-            expected_params={"Bucket": bucket, "Key": key, "Range": f"bytes={start}-{end}"},
+            expected_params={
+                "Bucket": bucket,
+                "Key": key,
+                "Range": f"bytes={start}-{end}",
+            },
         )
 
     stubber.activate()
@@ -80,7 +86,9 @@ def _build_des(tmp_path: Path):
 @pytest.mark.integration
 @pytest.mark.s3
 def test_s3_des_reader_round_trip(tmp_path: Path) -> None:
-    des_bytes, files, index_start, index_length, data_offsets, file_size = _build_des(tmp_path)
+    des_bytes, files, index_start, index_length, data_offsets, file_size = _build_des(
+        tmp_path
+    )
     bucket = "test-bucket"
     key = "test-2025-11-25.des"
 
@@ -110,7 +118,9 @@ def test_s3_des_reader_round_trip(tmp_path: Path) -> None:
 @pytest.mark.integration
 @pytest.mark.s3
 def test_s3_des_reader_batch_reads(tmp_path: Path) -> None:
-    des_bytes, files, index_start, index_length, data_offsets, file_size = _build_des(tmp_path)
+    des_bytes, files, index_start, index_length, data_offsets, file_size = _build_des(
+        tmp_path
+    )
     bucket = "test-bucket"
     key = "test-2025-11-25.des"
 

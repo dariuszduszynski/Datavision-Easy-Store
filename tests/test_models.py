@@ -1,4 +1,5 @@
 """Tests for DES data models."""
+
 import sys
 from pathlib import Path
 

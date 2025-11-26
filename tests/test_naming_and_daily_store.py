@@ -21,7 +21,9 @@ def test_snowflake_basic_format(monkeypatch) -> None:
     def fake_epoch_ms():
         return fixed_ts_ms
 
-    gen = SnowflakeNameGenerator(SnowflakeNameConfig(node_id=1, prefix="TEST", wrap_bits=16))
+    gen = SnowflakeNameGenerator(
+        SnowflakeNameConfig(node_id=1, prefix="TEST", wrap_bits=16)
+    )
     monkeypatch.setattr(gen, "_epoch_ms", fake_epoch_ms)
 
     names = [gen.next_name(day=date(2025, 1, 1)) for _ in range(3)]
@@ -43,7 +45,9 @@ def test_snowflake_monotonicity(monkeypatch) -> None:
         calls["count"] += 1
         return base_ts
 
-    gen = SnowflakeNameGenerator(SnowflakeNameConfig(node_id=2, prefix="NODE", wrap_bits=16))
+    gen = SnowflakeNameGenerator(
+        SnowflakeNameConfig(node_id=2, prefix="NODE", wrap_bits=16)
+    )
     monkeypatch.setattr(gen, "_epoch_ms", fake_epoch_ms)
 
     names = [gen.next_name(day=date(2025, 1, 1)) for _ in range(5)]
@@ -52,21 +56,25 @@ def test_snowflake_monotonicity(monkeypatch) -> None:
 
 
 def test_daily_store_simple_pack(tmp_path: Path) -> None:
-    store = DailyShardedDesStore(base_dir=tmp_path, shard_bits=4, node_id=1, prefix="TEST")
-    
+    store = DailyShardedDesStore(
+        base_dir=tmp_path, shard_bits=4, node_id=1, prefix="TEST"
+    )
+
     # Store original data with metadata containing original filenames
     inputs = {
         "file1.txt": b"hello",
         "file2.bin": b"\x00\x01",
         "file three.txt": b"world",
     }
-    
+
     # Track generated names -> original data
     generated_names = {}
     for orig_name, data in inputs.items():
-        logical_name, _ = store.add_file(data, meta={"original_name": orig_name}, ext=None)
+        logical_name, _ = store.add_file(
+            data, meta={"original_name": orig_name}, ext=None
+        )
         generated_names[logical_name] = (data, orig_name)
-    
+
     store.close()
 
     today = date.today().isoformat()
@@ -86,16 +94,17 @@ def test_daily_store_simple_pack(tmp_path: Path) -> None:
                 seen[fname] = (data, meta.get("original_name"))
 
     # Check we found all generated files
-    assert set(seen.keys()) == set(generated_names.keys()), \
+    assert set(seen.keys()) == set(generated_names.keys()), (
         f"Expected files: {set(generated_names.keys())}, found: {set(seen.keys())}"
-    
+    )
+
     # Verify data matches
     for gen_name, (expected_data, orig_name) in generated_names.items():
         found_data, found_orig_name = seen[gen_name]
-        assert found_data == expected_data, \
+        assert found_data == expected_data, (
             f"Data mismatch for {gen_name} (original: {orig_name})"
-        assert found_orig_name == orig_name, \
-            f"Metadata mismatch for {gen_name}"
+        )
+        assert found_orig_name == orig_name, f"Metadata mismatch for {gen_name}"
 
 
 def test_daily_store_rollover_between_days(tmp_path: Path, monkeypatch) -> None:
@@ -103,11 +112,15 @@ def test_daily_store_rollover_between_days(tmp_path: Path, monkeypatch) -> None:
     day2 = date(2025, 1, 2)
 
     # Patch date.today used inside DailyShardedDesStore via constructor argument
-    store1 = DailyShardedDesStore(base_dir=tmp_path, shard_bits=3, day=day1, node_id=1, prefix="D1")
+    store1 = DailyShardedDesStore(
+        base_dir=tmp_path, shard_bits=3, day=day1, node_id=1, prefix="D1"
+    )
     store1.add_file(b"a", meta={"day": "1"})
     store1.close()
 
-    store2 = DailyShardedDesStore(base_dir=tmp_path, shard_bits=3, day=day2, node_id=2, prefix="D2")
+    store2 = DailyShardedDesStore(
+        base_dir=tmp_path, shard_bits=3, day=day2, node_id=2, prefix="D2"
+    )
     store2.add_file(b"b", meta={"day": "2"})
     store2.close()
 

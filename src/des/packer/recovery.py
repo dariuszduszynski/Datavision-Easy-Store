@@ -20,6 +20,7 @@ Examples:
     await manager.verify_container_integrity()
     ```
 """
+
 import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Set
@@ -104,7 +105,9 @@ class CrashRecoveryManager:
         Returns:
             Number of rows updated.
         """
-        cutoff = datetime.now(timezone.utc) - timedelta(seconds=self.claim_timeout_seconds)
+        cutoff = datetime.now(timezone.utc) - timedelta(
+            seconds=self.claim_timeout_seconds
+        )
         stmt = text(
             f"""
             UPDATE {self.source_table}
@@ -119,7 +122,11 @@ class CrashRecoveryManager:
         async with self.db.session_factory() as session:
             result = await session.execute(
                 stmt,
-                {"pending": self.pending_status, "claimed": self.claimed_status, "cutoff": cutoff},
+                {
+                    "pending": self.pending_status,
+                    "claimed": self.claimed_status,
+                    "cutoff": cutoff,
+                },
             )
             await session.commit()
 
@@ -139,7 +146,9 @@ class CrashRecoveryManager:
         Returns:
             Number of containers updated.
         """
-        cutoff = datetime.now(timezone.utc) - timedelta(seconds=self.container_grace_seconds)
+        cutoff = datetime.now(timezone.utc) - timedelta(
+            seconds=self.container_grace_seconds
+        )
         async with self.db.session_factory() as session:
             result = await session.execute(
                 select(DesContainer).where(
@@ -156,7 +165,9 @@ class CrashRecoveryManager:
                     container.status = "failed"
                     container.finalized_at = datetime.now(timezone.utc)
                     actions += 1
-                    RECOVERY_PARTIAL_CONTAINERS.labels(action="missing_s3_mark_failed").inc()
+                    RECOVERY_PARTIAL_CONTAINERS.labels(
+                        action="missing_s3_mark_failed"
+                    ).inc()
                     logger.warning(
                         "container_missing_in_s3",
                         container_id=container.id,
@@ -171,7 +182,9 @@ class CrashRecoveryManager:
                     container.status = "failed"
                     container.finalized_at = datetime.now(timezone.utc)
                     actions += 1
-                    RECOVERY_PARTIAL_CONTAINERS.labels(action="corrupt_mark_failed").inc()
+                    RECOVERY_PARTIAL_CONTAINERS.labels(
+                        action="corrupt_mark_failed"
+                    ).inc()
                     logger.warning(
                         "container_corrupt_removed",
                         container_id=container.id,
@@ -231,7 +244,9 @@ class CrashRecoveryManager:
                     container.status = "failed"
                     container.finalized_at = datetime.now(timezone.utc)
                     actions += 1
-                    RECOVERY_CONTAINER_INTEGRITY.labels(outcome="missing_in_s3_mark_failed").inc()
+                    RECOVERY_CONTAINER_INTEGRITY.labels(
+                        outcome="missing_in_s3_mark_failed"
+                    ).inc()
                     logger.warning(
                         "container_missing_in_s3_mark_failed",
                         container_id=container.id,
@@ -246,7 +261,9 @@ class CrashRecoveryManager:
                     container.status = "failed"
                     container.finalized_at = datetime.now(timezone.utc)
                     actions += 1
-                    RECOVERY_CONTAINER_INTEGRITY.labels(outcome="corrupt_mark_failed").inc()
+                    RECOVERY_CONTAINER_INTEGRITY.labels(
+                        outcome="corrupt_mark_failed"
+                    ).inc()
                     logger.warning(
                         "container_corrupt_mark_failed",
                         container_id=container.id,
@@ -262,7 +279,9 @@ class CrashRecoveryManager:
                         .values(file_count=file_count)
                     )
                     actions += 1
-                    RECOVERY_CONTAINER_INTEGRITY.labels(outcome="file_count_corrected").inc()
+                    RECOVERY_CONTAINER_INTEGRITY.labels(
+                        outcome="file_count_corrected"
+                    ).inc()
                     logger.info(
                         "container_file_count_corrected",
                         container_id=container.id,
@@ -280,7 +299,9 @@ class CrashRecoveryManager:
                 await self._delete_s3_object(key)
                 actions += 1
                 RECOVERY_CONTAINER_INTEGRITY.labels(outcome="orphan_s3_deleted").inc()
-                logger.warning("orphan_s3_object_deleted", key=key, bucket=self.s3_bucket)
+                logger.warning(
+                    "orphan_s3_object_deleted", key=key, bucket=self.s3_bucket
+                )
 
         return actions
 
@@ -291,7 +312,9 @@ class CrashRecoveryManager:
 
         full_key = self._full_s3_key(key)
         try:
-            await asyncio.to_thread(self.s3_client.head_object, Bucket=self.s3_bucket, Key=full_key)
+            await asyncio.to_thread(
+                self.s3_client.head_object, Bucket=self.s3_bucket, Key=full_key
+            )
             return True
         except Exception as exc:  # boto3 uses specific exceptions per client
             logger.debug("s3_head_failed", key=full_key, error=str(exc))
@@ -301,7 +324,9 @@ class CrashRecoveryManager:
         if not self.s3_client or not self.s3_bucket:
             return
         full_key = self._full_s3_key(key)
-        await asyncio.to_thread(self.s3_client.delete_object, Bucket=self.s3_bucket, Key=full_key)
+        await asyncio.to_thread(
+            self.s3_client.delete_object, Bucket=self.s3_bucket, Key=full_key
+        )
 
     async def _validate_container(self, key: str) -> tuple[bool, Optional[int]]:
         """
@@ -328,7 +353,9 @@ class CrashRecoveryManager:
             return False, None
 
         try:
-            reader = await asyncio.to_thread(S3DesReader, self.s3_bucket, full_key, self.s3_client)
+            reader = await asyncio.to_thread(
+                S3DesReader, self.s3_bucket, full_key, self.s3_client
+            )
             return True, reader.file_count
         except Exception as exc:
             logger.warning("container_footer_invalid", key=full_key, error=str(exc))

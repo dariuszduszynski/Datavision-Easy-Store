@@ -1,4 +1,5 @@
 """DesReader for reading DES archives."""
+
 import json
 import os
 import struct
@@ -9,7 +10,6 @@ from des.core.constants import (
     FOOTER_STRUCT,
     FOOTER_MAGIC,
     VERSION,
-    ENTRY_FIXED_SIZE,
     ENTRY_FIXED_STRUCT,
     FLAG_IS_EXTERNAL,
     DEFAULT_MAX_GAP_SIZE,
@@ -51,7 +51,7 @@ class DesReader:
     def _parse_footer(self, data: bytes):
         """
         Parse and validate DES footer.
-        
+
         Raises:
             ValueError: If footer is corrupted or contains invalid values
         """
@@ -67,17 +67,15 @@ class DesReader:
             self.index_length,
             self.file_count,
         ) = FOOTER_STRUCT.unpack(data)
-        
+
         # Validate magic and version
         if magic != FOOTER_MAGIC:
             raise ValueError(
                 f"Invalid DES footer magic: {magic!r} (expected {FOOTER_MAGIC!r})"
             )
         if version != VERSION:
-            raise ValueError(
-                f"Unsupported DES version: {version} (expected {VERSION})"
-            )
-        
+            raise ValueError(f"Unsupported DES version: {version} (expected {VERSION})")
+
         # Validate numeric fields are non-negative
         if self.data_start < 0:
             raise ValueError(f"Invalid data_start in footer: {self.data_start}")
@@ -98,15 +96,21 @@ class DesReader:
             raise ValueError(
                 f"Invalid file_count in footer: {self.file_count} (index too small: {self.index_length} bytes)"
             )
-        
+
         # Validate regions don't overlap and fit in file
         if self.data_start > self.file_size:
-            raise ValueError(f"data_start ({self.data_start}) exceeds file size ({self.file_size})")
+            raise ValueError(
+                f"data_start ({self.data_start}) exceeds file size ({self.file_size})"
+            )
         if self.meta_start > self.file_size:
-            raise ValueError(f"meta_start ({self.meta_start}) exceeds file size ({self.file_size})")
+            raise ValueError(
+                f"meta_start ({self.meta_start}) exceeds file size ({self.file_size})"
+            )
         if self.index_start > self.file_size:
-            raise ValueError(f"index_start ({self.index_start}) exceeds file size ({self.file_size})")
-        
+            raise ValueError(
+                f"index_start ({self.index_start}) exceeds file size ({self.file_size})"
+            )
+
         # Validate data region ends before meta region starts
         data_end = self.data_start + self.data_length
         if data_end > self.meta_start:
@@ -114,7 +118,7 @@ class DesReader:
                 f"Data region overlaps meta region: data ends at {data_end}, "
                 f"meta starts at {self.meta_start}"
             )
-        
+
         # Validate meta region ends before or at index region start
         meta_end = self.meta_start + self.meta_length
         if meta_end > self.index_start:
@@ -122,7 +126,7 @@ class DesReader:
                 f"Meta region overlaps index region: meta ends at {meta_end}, "
                 f"index starts at {self.index_start}"
             )
-        
+
         # Validate index region fits in file (before footer)
         index_end = self.index_start + self.index_length
         footer_start = self.file_size - FOOTER_SIZE
@@ -211,92 +215,90 @@ class DesReader:
     ) -> Dict[str, bytes]:
         """
         Batch read multiple files with gap merging optimization.
-        
+
         Adjacent files are merged into single read if gap < max_gap_size.
-        
+
         Args:
             names: Sequence of filenames to retrieve
             max_gap_size: Maximum gap between files to merge (bytes)
-        
+
         Returns:
             Dict mapping filename to content (missing files are skipped)
-        
+
         Raises:
             TypeError: If names is a string instead of sequence
         """
         if isinstance(names, str):
             raise TypeError("names must be a sequence of file names, not string")
-        
+
         self._load_index()
-        
+
         # Filter existing entries and sort by offset
         entries = []
         for name in names:
             entry = self._index_by_name.get(name)
             if entry:
                 entries.append(entry)
-        
+
         if not entries:
             return {}
-        
+
         entries.sort(key=lambda e: e.data_offset)
-        
+
         # Group adjacent entries for batch reading
         batches = self._group_entries(entries, max_gap_size)
-        
+
         # Fetch batches
         results = {}
         for batch in batches:
             if not batch:
                 continue
-            
+
             # Calculate range for entire batch
             first = batch[0]
             last = batch[-1]
             start_offset = first.data_offset
             end_offset = last.data_offset + last.data_length
             batch_length = end_offset - start_offset
-            
+
             # Read entire batch
             self._f.seek(start_offset)
             batch_data = self._f.read(batch_length)
-            
+
             # Split by individual files
             for entry in batch:
                 file_start = entry.data_offset - start_offset
                 file_end = file_start + entry.data_length
                 results[entry.name] = batch_data[file_start:file_end]
-        
+
         return results
 
     def _group_entries(
-        self,
-        entries: List[IndexEntry],
-        max_gap_size: int
+        self, entries: List[IndexEntry], max_gap_size: int
     ) -> List[List[IndexEntry]]:
         """
         Group adjacent entries for batch reading.
-        
+
         Files are grouped if gap between them is < max_gap_size.
-        
+
         Args:
             entries: List of IndexEntry (must be sorted by data_offset)
             max_gap_size: Maximum gap to merge (bytes)
-        
+
         Returns:
             List of groups (each group is List[IndexEntry])
         """
         if not entries:
             return []
-        
+
         batches = []
         current_batch = [entries[0]]
-        
+
         for entry in entries[1:]:
             prev_entry = current_batch[-1]
             prev_end = prev_entry.data_offset + prev_entry.data_length
             gap = entry.data_offset - prev_end
-            
+
             if gap <= max_gap_size:
                 # Merge into current batch
                 current_batch.append(entry)
@@ -304,11 +306,11 @@ class DesReader:
                 # Start new batch
                 batches.append(current_batch)
                 current_batch = [entry]
-        
+
         # Add last batch
         if current_batch:
             batches.append(current_batch)
-        
+
         return batches
 
     def get_meta(self, name: str) -> dict:
@@ -326,17 +328,17 @@ class DesReader:
     def get_stats(self) -> DesStats:
         """
         Get archive statistics.
-        
+
         Returns:
             DesStats with file counts and sizes
         """
         self._load_index()
-        
+
         internal_count = 0
         external_count = 0
         internal_size = 0
         external_size = 0
-        
+
         for entry in self._index_by_name.values():
             if entry.flags & FLAG_IS_EXTERNAL:
                 external_count += 1
@@ -344,7 +346,7 @@ class DesReader:
             else:
                 internal_count += 1
                 internal_size += entry.data_length
-        
+
         return DesStats(
             total_files=len(self._index_by_name),
             internal_files=internal_count,

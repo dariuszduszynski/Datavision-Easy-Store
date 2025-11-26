@@ -23,7 +23,9 @@ async def test_mark_batch_updates_old_rows(async_db_engine):
     worker = FileMarkerWorker(session_factory, batch_size=10, max_age_days=1)
 
     old_entry = CatalogEntry(created_at=datetime.now(timezone.utc) - timedelta(days=2))
-    recent_entry = CatalogEntry(created_at=datetime.now(timezone.utc) - timedelta(hours=12))
+    recent_entry = CatalogEntry(
+        created_at=datetime.now(timezone.utc) - timedelta(hours=12)
+    )
 
     async with session_factory() as session:
         async with session.begin():

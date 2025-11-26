@@ -1,13 +1,19 @@
 """
 Async PostgreSQL connector and models for DES.
 """
+
 import os
 from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 from sqlalchemy import BigInteger, Date, DateTime, Integer, String, delete, update
 from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -24,9 +30,15 @@ class ShardLock(Base):
 
     shard_id: Mapped[int] = mapped_column(Integer, primary_key=True)
     holder_id: Mapped[str] = mapped_column(String(128), nullable=False)
-    acquired_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    heartbeat_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    acquired_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    heartbeat_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
     state: Mapped[str] = mapped_column(String(32), nullable=False, default="held")
 
 
@@ -44,7 +56,9 @@ class DesContainer(Base):
     s3_key: Mapped[str] = mapped_column(String(512), nullable=False)
     file_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     data_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
     finalized_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
 
@@ -58,7 +72,9 @@ class DesDbConnector:
         if not self.db_url:
             raise RuntimeError("DES_DB_URL env variable is required")
 
-        self.engine: AsyncEngine = create_async_engine(self.db_url, echo=echo, future=True)
+        self.engine: AsyncEngine = create_async_engine(
+            self.db_url, echo=echo, future=True
+        )
         self.session_factory: async_sessionmaker[AsyncSession] = async_sessionmaker(
             self.engine, expire_on_commit=False
         )
@@ -68,7 +84,9 @@ class DesDbConnector:
         async with self.engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
 
-    async def try_acquire_shard_lock(self, shard_id: int, holder_id: str, ttl_seconds: int) -> bool:
+    async def try_acquire_shard_lock(
+        self, shard_id: int, holder_id: str, ttl_seconds: int
+    ) -> bool:
         """
         Try to acquire shard lock via UPSERT guarded by expiration/holder check.
         """
@@ -104,7 +122,9 @@ class DesDbConnector:
             await session.commit()
             return result.scalar_one_or_none() is not None
 
-    async def renew_shard_lock(self, shard_id: int, holder_id: str, ttl_seconds: int) -> bool:
+    async def renew_shard_lock(
+        self, shard_id: int, holder_id: str, ttl_seconds: int
+    ) -> bool:
         """
         Heartbeat/extend an existing lock if still owned and unexpired.
         """

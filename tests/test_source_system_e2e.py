@@ -1,4 +1,5 @@
 """End-to-end integration test for source database system."""
+
 import sys
 from datetime import datetime, timezone
 from pathlib import Path

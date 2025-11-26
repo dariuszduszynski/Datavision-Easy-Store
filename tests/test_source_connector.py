@@ -1,4 +1,5 @@
 """Tests for source database connector."""
+
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -307,9 +308,7 @@ def test_connector_mark_files_failed(sqlite_config, sqlite_db, monkeypatch):
 
     table = connector._table
     with sqlite_db.connect() as conn:
-        rows = conn.execute(
-            select(table).where(table.c.id.in_([1, 2]))
-        ).fetchall()
+        rows = conn.execute(select(table).where(table.c.id.in_([1, 2]))).fetchall()
 
     for row in rows:
         assert row._mapping["status"] == "failed"

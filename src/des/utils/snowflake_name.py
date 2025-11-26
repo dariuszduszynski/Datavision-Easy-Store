@@ -7,9 +7,9 @@ from datetime import date
 
 @dataclass
 class SnowflakeNameConfig:
-    node_id: int = 0         # 0–255
-    prefix: str = "DES"      # zamiast "UserCustom"
-    wrap_bits: int = 32      # ile mniej znaczących bitów epoch_ms bierzemy
+    node_id: int = 0  # 0–255
+    prefix: str = "DES"  # zamiast "UserCustom"
+    wrap_bits: int = 32  # ile mniej znaczących bitów epoch_ms bierzemy
 
 
 class SnowflakeNameGenerator:

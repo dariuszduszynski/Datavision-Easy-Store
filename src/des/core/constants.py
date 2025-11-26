@@ -1,6 +1,7 @@
 """
 DES format constants, magic numbers, and flags.
 """
+
 import struct
 
 # Magic numbers
@@ -27,9 +28,9 @@ ENTRY_FIXED_SIZE = ENTRY_FIXED_STRUCT.size  # 44 bytes
 
 # Flags (bitwise)
 FLAG_IS_EXTERNAL = 1 << 0  # 0x01 - file stored in _bigFiles/
-FLAG_COMPRESSED = 1 << 1   # 0x02 - reserved: file data is compressed
-FLAG_ENCRYPTED = 1 << 2    # 0x04 - reserved: file data is encrypted
-FLAG_DELETED = 1 << 3      # 0x08 - reserved: logically deleted (for v2 compaction)
+FLAG_COMPRESSED = 1 << 1  # 0x02 - reserved: file data is compressed
+FLAG_ENCRYPTED = 1 << 2  # 0x04 - reserved: file data is encrypted
+FLAG_DELETED = 1 << 3  # 0x08 - reserved: logically deleted (for v2 compaction)
 
 # Big file threshold (default: 100 MB)
 DEFAULT_BIG_FILE_THRESHOLD = 100 * 1024 * 1024  # 100 MB

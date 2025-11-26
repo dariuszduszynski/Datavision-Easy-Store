@@ -1,9 +1,20 @@
 """Prometheus metrics for DES components."""
-from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
+
+from prometheus_client import (
+    CONTENT_TYPE_LATEST,
+    Counter,
+    Gauge,
+    Histogram,
+    generate_latest,
+)
 
 # Counters
-PACKED_FILES = Counter("des_packer_files_packed_total", "Number of files packed", ["shard_id"])
-PACKED_BYTES = Counter("des_packer_bytes_packed_total", "Total bytes packed", ["shard_id"])
+PACKED_FILES = Counter(
+    "des_packer_files_packed_total", "Number of files packed", ["shard_id"]
+)
+PACKED_BYTES = Counter(
+    "des_packer_bytes_packed_total", "Total bytes packed", ["shard_id"]
+)
 SHARD_LOCK_CONFLICTS = Counter(
     "des_shard_lock_conflicts_total",
     "Shard lock acquisition conflicts",

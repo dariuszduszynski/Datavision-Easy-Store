@@ -1,4 +1,5 @@
 """FastAPI microservice for assigning DES snowflake names and shard IDs."""
+
 import json
 import logging
 import os
@@ -90,7 +91,9 @@ def health() -> dict:
 @app.get("/metrics")
 def metrics() -> Response:
     """Prometheus metrics endpoint."""
-    return Response(des_metrics.generate_latest(), media_type=des_metrics.CONTENT_TYPE_LATEST)
+    return Response(
+        des_metrics.generate_latest(), media_type=des_metrics.CONTENT_TYPE_LATEST
+    )
 
 
 @app.get("/health/live")
@@ -118,7 +121,9 @@ def assign(request: AssignRequest) -> AssignResponse:
     day = date.today()
     try:
         generator = SnowflakeNameGenerator(
-            SnowflakeNameConfig(node_id=NODE_ID, prefix=request.prefix, wrap_bits=WRAP_BITS)
+            SnowflakeNameConfig(
+                node_id=NODE_ID, prefix=request.prefix, wrap_bits=WRAP_BITS
+            )
         )
     except ValueError as exc:
         log_event("invalid_request", error=str(exc))

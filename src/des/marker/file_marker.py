@@ -30,7 +30,9 @@ class FileMarkerWorker:
         self._generator = SnowflakeNameGenerator(config=snowflake_config)
         self.logger = get_logger(__name__)
 
-    async def _select_candidates(self, session: AsyncSession, cutoff: datetime) -> list[CatalogEntry]:
+    async def _select_candidates(
+        self, session: AsyncSession, cutoff: datetime
+    ) -> list[CatalogEntry]:
         """Select candidate rows that require DES metadata."""
         stmt = (
             select(CatalogEntry)

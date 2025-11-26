@@ -101,8 +101,16 @@ class HealthChecker:
         async def _probe() -> Tuple[int, int]:
             async with self.db.session_factory() as session:
                 now = datetime.now(timezone.utc)
-                held_stmt = select(func.count()).select_from(ShardLock).where(ShardLock.expires_at > now)
-                expired_stmt = select(func.count()).select_from(ShardLock).where(ShardLock.expires_at <= now)
+                held_stmt = (
+                    select(func.count())
+                    .select_from(ShardLock)
+                    .where(ShardLock.expires_at > now)
+                )
+                expired_stmt = (
+                    select(func.count())
+                    .select_from(ShardLock)
+                    .where(ShardLock.expires_at <= now)
+                )
                 held_count = (await session.execute(held_stmt)).scalar_one()
                 expired_count = (await session.execute(expired_stmt)).scalar_one()
                 return int(held_count or 0), int(expired_count or 0)
@@ -126,7 +134,9 @@ class HealthChecker:
             result["error"] = error
         return result
 
-    async def _check_single_source(self, name: str, connector: Any) -> Tuple[str, bool, Optional[str]]:
+    async def _check_single_source(
+        self, name: str, connector: Any
+    ) -> Tuple[str, bool, Optional[str]]:
         """Ping a single source DB connector in a thread."""
 
         def _ping() -> Tuple[bool, Optional[str]]:
@@ -138,7 +148,9 @@ class HealthChecker:
             return True, None
 
         try:
-            ok, err = await asyncio.wait_for(asyncio.to_thread(_ping), timeout=self.timeout)
+            ok, err = await asyncio.wait_for(
+                asyncio.to_thread(_ping), timeout=self.timeout
+            )
             return name, ok, err
         except asyncio.TimeoutError:
             return name, False, "timeout"
@@ -155,9 +167,17 @@ class HealthChecker:
 
         if not connectors:
             latency_ms = int((time.perf_counter() - start) * 1000)
-            return {"status": "ok", "enabled": 0, "connected": 0, "latency_ms": latency_ms}
+            return {
+                "status": "ok",
+                "enabled": 0,
+                "connected": 0,
+                "latency_ms": latency_ms,
+            }
 
-        tasks = [self._check_single_source(name, connector) for name, connector in connectors.items()]
+        tasks = [
+            self._check_single_source(name, connector)
+            for name, connector in connectors.items()
+        ]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         for result in results:
@@ -191,7 +211,9 @@ class HealthChecker:
             self.check_source_providers(),
         )
 
-        critical_failed = db_result.get("status") != "ok" or s3_result.get("status") != "ok"
+        critical_failed = (
+            db_result.get("status") != "ok" or s3_result.get("status") != "ok"
+        )
         non_critical_issue = (
             locks_result.get("status") != "ok"
             or locks_result.get("expired", 0) > 0

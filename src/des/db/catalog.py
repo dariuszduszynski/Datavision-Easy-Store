@@ -1,4 +1,5 @@
 """Catalog table model for DES marker worker."""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -16,7 +17,9 @@ class CatalogEntry(Base):
     __tablename__ = "des_source_catalog"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
 
     des_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     des_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)

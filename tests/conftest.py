@@ -16,7 +16,10 @@ from des.packer.multi_shard_packer import PendingFile
 
 def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line("markers", "unit: fast unit tests")
-    config.addinivalue_line("markers", "integration: tests that require external services or are slower (S3, Redis, DB, etc.)")
+    config.addinivalue_line(
+        "markers",
+        "integration: tests that require external services or are slower (S3, Redis, DB, etc.)",
+    )
     config.addinivalue_line("markers", "s3: tests that interact with S3 or moto S3")
     config.addinivalue_line("markers", "slow: slow-running tests")
 
@@ -29,6 +32,7 @@ def redis_client():
     """
     try:
         import fakeredis
+
         return fakeredis.FakeRedis()
     except ImportError:
         pytest.skip("fakeredis not installed (pip install fakeredis)")
@@ -72,7 +76,9 @@ async def des_db(async_db_engine: AsyncEngine) -> AsyncIterator[DesDbConnector]:
     connector = DesDbConnector(db_url=str(async_db_engine.url))
     original_engine = connector.engine
     connector.engine = async_db_engine
-    connector.session_factory = async_sessionmaker(async_db_engine, expire_on_commit=False)
+    connector.session_factory = async_sessionmaker(
+        async_db_engine, expire_on_commit=False
+    )
     await original_engine.dispose()
     await connector.init_models()
     try:
@@ -84,6 +90,7 @@ async def des_db(async_db_engine: AsyncEngine) -> AsyncIterator[DesDbConnector]:
 @pytest.fixture
 def source_db_mock():
     """In-memory source DB mock preloaded with sample files."""
+
     class SourceDbMock:
         def __init__(self) -> None:
             self._files: Dict[int, List[PendingFile]] = defaultdict(list)
@@ -91,14 +98,25 @@ def source_db_mock():
 
         def _seed(self) -> None:
             self._files[1] = [
-                PendingFile(shard_id=1, name="file1.txt", data=b"alpha", meta={"source": "test"}),
-                PendingFile(shard_id=1, name="file2.txt", data=b"bravo", meta={"source": "test"}),
+                PendingFile(
+                    shard_id=1, name="file1.txt", data=b"alpha", meta={"source": "test"}
+                ),
+                PendingFile(
+                    shard_id=1, name="file2.txt", data=b"bravo", meta={"source": "test"}
+                ),
             ]
             self._files[2] = [
-                PendingFile(shard_id=2, name="file3.txt", data=b"charlie", meta={"source": "test"})
+                PendingFile(
+                    shard_id=2,
+                    name="file3.txt",
+                    data=b"charlie",
+                    meta={"source": "test"},
+                )
             ]
 
-        async def get_pending_files(self, shard_id: int, limit: int) -> List[PendingFile]:
+        async def get_pending_files(
+            self, shard_id: int, limit: int
+        ) -> List[PendingFile]:
             await asyncio.sleep(0)
             items = self._files[shard_id][:limit]
             self._files[shard_id] = self._files[shard_id][limit:]

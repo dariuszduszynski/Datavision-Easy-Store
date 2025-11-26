@@ -1,8 +1,10 @@
 """
 Configuration management.
 """
+
 from dataclasses import dataclass
 from typing import Optional
+
 
 @dataclass
 class DatabaseConfig:
@@ -13,6 +15,7 @@ class DatabaseConfig:
     user: str
     password: str
 
+
 @dataclass
 class MigrationConfig:
     n_bits: int
@@ -22,18 +25,18 @@ class MigrationConfig:
     source_bucket: str
     archive_bucket: str
 
+
 class Config:
     """
     Main config loader - supports YAML, ENV, etc.
     """
+
     def __init__(self):
         self.database: Optional[DatabaseConfig] = None
         self.migration: Optional[MigrationConfig] = None
-    
+
     @classmethod
-    def from_yaml(cls, path: str):
-        ...
-    
+    def from_yaml(cls, path: str): ...
+
     @classmethod
-    def from_env(cls):
-        ...
+    def from_env(cls): ...

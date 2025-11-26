@@ -1,4 +1,5 @@
 """Multi-shard DES packer with shard locking and day rollover."""
+
 import asyncio
 import contextlib
 import os
@@ -55,7 +56,9 @@ class RetryableDbError(Exception):
 class HeartbeatManager:
     """Keeps shard locks alive by periodic renewal."""
 
-    def __init__(self, connector: DesDbConnector, shard_id: int, holder_id: str, ttl_seconds: int):
+    def __init__(
+        self, connector: DesDbConnector, shard_id: int, holder_id: str, ttl_seconds: int
+    ):
         self.connector = connector
         self.shard_id = shard_id
         self.holder_id = holder_id
@@ -80,7 +83,9 @@ class HeartbeatManager:
         interval = max(1, self.ttl_seconds // 2)
         while not self._stop.is_set():
             await asyncio.sleep(interval)
-            await self.connector.renew_shard_lock(self.shard_id, self.holder_id, self.ttl_seconds)
+            await self.connector.renew_shard_lock(
+                self.shard_id, self.holder_id, self.ttl_seconds
+            )
 
 
 class MultiShardPacker:
@@ -109,7 +114,9 @@ class MultiShardPacker:
         self.loop_sleep = self.cfg.get("loop_sleep_seconds", 2)
         self.base_dir = Path(self.cfg.get("work_dir", "/tmp/des_packer"))
         self.base_dir.mkdir(parents=True, exist_ok=True)
-        self.holder_id = self.cfg.get("holder_id") or f"{socket.gethostname()}-{os.getpid()}"
+        self.holder_id = (
+            self.cfg.get("holder_id") or f"{socket.gethostname()}-{os.getpid()}"
+        )
         self.dest_prefix = self.cfg.get("dest_prefix", "")
 
         self._writers: Dict[int, dict] = {}
@@ -141,7 +148,9 @@ class MultiShardPacker:
                     return
 
                 if shard_id not in self._heartbeats:
-                    hb = HeartbeatManager(self.db, shard_id, self.holder_id, self.lock_ttl)
+                    hb = HeartbeatManager(
+                        self.db, shard_id, self.holder_id, self.lock_ttl
+                    )
                     self._heartbeats[shard_id] = hb
                     await hb.start()
                     logger.info(
@@ -287,7 +296,8 @@ class MultiShardPacker:
         now = datetime.now(timezone.utc)
         if (
             state["file_count"] % self.checkpoint_every_files == 0
-            or (now - state["last_checkpoint"]).total_seconds() >= self.checkpoint_every_seconds
+            or (now - state["last_checkpoint"]).total_seconds()
+            >= self.checkpoint_every_seconds
         ):
             await self._update_container_record(
                 container_id=state["container_id"],

@@ -7,10 +7,8 @@ setup(
     author="Dariusz Duszyński",
     author_email="dariusz@datavision.pl",
     url="https://github.com/dariuszduszynski/Datavision-Easy-Store",
-    
     package_dir={"": "src"},
     packages=find_packages(where="src"),
-    
     install_requires=[
         "boto3>=1.26.0",
         "psycopg2-binary>=2.9.0",
@@ -24,7 +22,6 @@ setup(
         "prometheus-client>=0.16.0",
         "SQLAlchemy>=2.0.0",
     ],
-    
     extras_require={
         "dev": [
             "pytest>=7.3.0",
@@ -36,7 +33,6 @@ setup(
         "mysql": ["pymysql>=1.0.0"],
         "mssql": ["pymssql>=2.2.0"],
     },
-    
     entry_points={
         "console_scripts": [
             "des=des.cli.main:cli",
@@ -45,7 +41,6 @@ setup(
             "des-marker=des.cli.des_marker:main",
         ],
     },
-    
     python_requires=">=3.11",
     classifiers=[
         "Development Status :: 3 - Alpha",
