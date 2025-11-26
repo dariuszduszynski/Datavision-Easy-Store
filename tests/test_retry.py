@@ -106,7 +106,9 @@ async def test_retry_preserves_exception_info() -> None:
     raise_line: dict[str, int] = {}
 
     async def failing() -> None:
-        raise_line["line"] = inspect.currentframe().f_lineno
+        frame = inspect.currentframe()
+        assert frame is not None
+        raise_line["line"] = frame.f_lineno
         raise ValueError("boom")
 
     decorated = async_retry(max_attempts=1, jitter=False)(failing)

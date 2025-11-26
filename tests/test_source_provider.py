@@ -39,17 +39,33 @@ def make_source_config(
             database="db",
             username="user",
             password="pass",
+            schema="public",
+            charset="utf8mb4",
+            pool_size=5,
+            pool_recycle=3600,
+            pool_pre_ping=True,
+            driver_options={},
         ),
         table=SourceTableConfig(
             name="files",
+            schema="public",
             columns=ColumnMapping(
                 id="id",
                 s3_bucket="bucket",
                 s3_key="key",
                 size_bytes="size",
                 status="status",
+                created_at="created_at",
+                metadata_columns={"owner": "owner"},
             ),
+            where_clause=None,
+            status_pending_value="pending",
+            status_claimed_value="claimed",
+            shard_key_column="id",
         ),
+        batch_size=100,
+        claim_timeout_seconds=300,
+        shard_bits=8,
     )
 
 

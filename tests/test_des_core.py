@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+from typing import Any
 
 # Ensure src/ is on sys.path for local test runs without installation
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -13,7 +14,7 @@ from des.core import DesReader, DesWriter  # noqa: E402
 def test_des_round_trip_basic(tmp_path: Path) -> None:
     des_path = tmp_path / "sample.des"
 
-    files = {
+    files: dict[str, tuple[bytes, dict[str, Any]]] = {
         "hello.txt": (b"hello", {"mime": "text/plain"}),
         "bin.dat": (b"\x00\x01\x02", {"mime": "application/octet-stream"}),
         "notes with_space.txt": (b"notes", {"meta": {"k": "v"}, "type": "text"}),
@@ -33,7 +34,7 @@ def test_des_round_trip_basic(tmp_path: Path) -> None:
 
 def test_des_index_sanity(tmp_path: Path) -> None:
     des_path = tmp_path / "sanity.des"
-    inputs = {
+    inputs: dict[str, tuple[bytes, dict[str, Any]]] = {
         "a.txt": (b"a", {"i": 1}),
         "b.bin": (b"\x10\x20\x30", {"i": 2}),
         "c.json": (b'{"ok":true}', {"i": 3}),

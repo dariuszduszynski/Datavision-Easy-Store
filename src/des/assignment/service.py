@@ -4,7 +4,7 @@ import json
 import logging
 import os
 from datetime import date, datetime, timezone
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 import boto3
 from fastapi import FastAPI, HTTPException, Response
@@ -16,6 +16,10 @@ from des.db.connector import DesDbConnector
 from des.monitoring import metrics as des_metrics
 from des.packer.health import HealthChecker
 from des.utils.snowflake_name import SnowflakeNameConfig, SnowflakeNameGenerator
+
+if TYPE_CHECKING:
+    from des.config.config import Config
+    from des.db.postgres import PostgresConnector
 
 
 def _env_int(name: str, default: int) -> int:
@@ -139,3 +143,17 @@ def assign(request: AssignRequest) -> AssignResponse:
     response = AssignResponse(name=name, shard_id=shard_id, day=day.isoformat())
     log_event("assigned", name=name, shard_id=shard_id, day=response.day)
     return response
+
+
+class NameAssignmentService:
+    """Lightweight runner wrapper for the FastAPI name assignment app."""
+
+    def __init__(self, config: "Config", db: "PostgresConnector") -> None:
+        self.config = config
+        self.db = db
+
+    def run_forever(self, host: str = "0.0.0.0", port: int = 8000) -> None:
+        """Serve the FastAPI app using uvicorn."""
+        import uvicorn
+
+        uvicorn.run("des.assignment.service:app", host=host, port=port, reload=False)

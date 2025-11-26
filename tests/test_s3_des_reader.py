@@ -4,6 +4,7 @@ from pathlib import Path
 import boto3
 import pytest
 from moto import mock_aws as mock_s3
+from typing import Any
 
 # Ensure src/ is on sys.path for local test runs without installation
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -25,7 +26,7 @@ def test_s3_des_reader_round_trip(tmp_path: Path) -> None:
     s3.create_bucket(Bucket=bucket)
 
     des_path = tmp_path / "sample.des"
-    files = {
+    files: dict[str, tuple[bytes, dict[str, Any]]] = {
         "hello.txt": (b"hello", {"mime": "text/plain"}),
         "bin.dat": (b"\x00\x01\x02", {"mime": "application/octet-stream"}),
         "notes with_space.txt": (b"notes", {"meta": {"k": "v"}, "type": "text"}),
@@ -55,7 +56,7 @@ def test_s3_des_reader_batch_read(tmp_path: Path) -> None:
     s3.create_bucket(Bucket=bucket)
 
     des_path = tmp_path / "batch.des"
-    files = {
+    files: dict[str, tuple[bytes, dict[str, Any]]] = {
         "a.txt": (b"A", {"i": 1}),
         "b.txt": (b"B", {"i": 2}),
         "c.txt": (b"C", {"i": 3}),
