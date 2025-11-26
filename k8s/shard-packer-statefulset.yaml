@@ -1,0 +1,79 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: des-packer-config
+data:
+  DES_LOCK_TTL_SECONDS: "30"
+  DES_BATCH_SIZE: "100"
+  DES_DEST_PREFIX: "des-archives"
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: des-packer-secrets
+type: Opaque
+stringData:
+  DES_DB_URL: postgresql+asyncpg://user:pass@postgres/des
+  AWS_ACCESS_KEY_ID: replace-me
+  AWS_SECRET_ACCESS_KEY: replace-me
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: des-shard-packer
+spec:
+  clusterIP: None
+  selector:
+    app: des-shard-packer
+  ports:
+    - name: metrics
+      port: 9100
+      targetPort: 9100
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: des-shard-packer
+spec:
+  serviceName: des-shard-packer
+  replicas: 3
+  selector:
+    matchLabels:
+      app: des-shard-packer
+  template:
+    metadata:
+      labels:
+        app: des-shard-packer
+    spec:
+      containers:
+        - name: packer
+          image: ghcr.io/example/des-shard-packer:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: des-packer-config
+            - secretRef:
+                name: des-packer-secrets
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              ordinal=${HOSTNAME##*-}
+              export DES_SHARD_IDS=${ordinal}
+              exec python -m des.packer.runner
+          ports:
+            - containerPort: 9100
+              name: metrics
+          volumeMounts:
+            - name: des-workdir
+              mountPath: /var/lib/des
+      volumes:
+        - name: des-workdir
+          emptyDir: {}

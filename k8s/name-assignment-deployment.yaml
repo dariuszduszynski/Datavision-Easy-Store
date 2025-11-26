@@ -1,0 +1,79 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: des-config
+data:
+  DES_NODE_ID: "0"
+  DES_WRAP_BITS: "32"
+  DES_SHARD_BITS: "8"
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: des-secrets
+type: Opaque
+stringData:
+  DES_DB_URL: postgresql+asyncpg://user:pass@postgres/des
+  AWS_ACCESS_KEY_ID: replace-me
+  AWS_SECRET_ACCESS_KEY: replace-me
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: des-name-assignment
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: des-name-assignment
+  template:
+    metadata:
+      labels:
+        app: des-name-assignment
+    spec:
+      containers:
+        - name: app
+          image: ghcr.io/example/des-name-assignment:latest
+          imagePullPolicy: IfNotPresent
+          args:
+            - uvicorn
+            - des.assignment.service:app
+            - --host
+            - 0.0.0.0
+            - --port
+            - "8000"
+          ports:
+            - containerPort: 8000
+              name: http
+          envFrom:
+            - configMapRef:
+                name: des-config
+            - secretRef:
+                name: des-secrets
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 20
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: des-name-assignment
+spec:
+  selector:
+    app: des-name-assignment
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000

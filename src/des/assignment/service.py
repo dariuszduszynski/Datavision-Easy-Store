@@ -5,10 +5,11 @@ import os
 from datetime import date
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel
 
 from des.assignment.hash_routing import consistent_hash
+from des.monitoring import metrics as des_metrics
 from des.utils.snowflake_name import SnowflakeNameConfig, SnowflakeNameGenerator
 
 
@@ -56,6 +57,12 @@ app = FastAPI(title="DES Name Assignment Service")
 def health() -> dict:
     """Health probe endpoint."""
     return {"status": "ok"}
+
+
+@app.get("/metrics")
+def metrics() -> Response:
+    """Prometheus metrics endpoint."""
+    return Response(des_metrics.generate_latest(), media_type=des_metrics.CONTENT_TYPE_LATEST)
 
 
 @app.post("/assign", response_model=AssignResponse)
