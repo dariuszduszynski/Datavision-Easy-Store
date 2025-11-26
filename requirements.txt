@@ -7,3 +7,5 @@ psycopg2-binary>=2.9.0  # PostgreSQL
 pymysql>=1.1.0          # MySQL/MariaDB
 cx_Oracle>=8.3.0        # Oracle
 pymssql>=2.2.0          # MSSQL
+structlog>=24.0.0
+PyYAML>=6.0
