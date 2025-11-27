@@ -57,9 +57,11 @@ class FileMarkerWorker:
         if dialect and getattr(dialect, "name", "") not in {"sqlite"}:
             try:
                 stmt = stmt.with_for_update(skip_locked=True)
-            except Exception:
+            except Exception as exc:  # noqa: BLE001
                 # Fallback quietly on dialects that do not support FOR UPDATE.
-                pass
+                self.logger.warning(
+                    "dialect_no_for_update", dialect=getattr(dialect, "name", ""), error=str(exc)
+                )
 
         result = await session.execute(stmt)
         return list(result.scalars().all())

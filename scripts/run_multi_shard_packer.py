@@ -5,6 +5,8 @@
 import asyncio
 import logging
 import os
+import tempfile
+
 import boto3
 
 from des.db.source_config import MultiSourceConfig
@@ -54,7 +56,9 @@ async def main():
             shard_ids=shard_ids,
             config={
                 "batch_size": 100,
-                "work_dir": "/tmp/des_packer",
+                "work_dir": os.getenv(
+                    "DES_PACKER_WORKDIR", str(Path(tempfile.gettempdir()) / "des_packer")
+                ),
                 "holder_id": holder_id,
             },
             source_provider=provider,

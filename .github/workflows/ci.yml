@@ -45,7 +45,7 @@ jobs:
       - name: Security Checks
         run: |
           # Bandit: szuka luk w kodzie (wykluczamy testy)
-          bandit -r . --exclude tests
+          bandit -c pyproject.toml -r . 
           # Pip-audit: szuka luk w zainstalowanych bibliotekach
           pip-audit
 

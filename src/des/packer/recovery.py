@@ -22,11 +22,12 @@ Examples:
 """
 
 import asyncio
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional, Set
 
 import structlog
-from sqlalchemy import delete, select, text, update
+from sqlalchemy import and_, delete, or_, select, table, update, column
 
 from des.core.constants import MIN_DES_FILE_SIZE
 from des.core.s3_des_reader import S3DesReader
@@ -90,6 +91,13 @@ class CrashRecoveryManager:
         self.claim_timeout_seconds = claim_timeout_seconds
         self.container_grace_seconds = container_grace_seconds
         self.cleanup_orphaned_s3 = cleanup_orphaned_s3
+        for identifier in (
+            self.source_table,
+            self.status_column,
+            self.claimed_by_column,
+            self.claimed_at_column,
+        ):
+            _validate_identifier(identifier)
 
     def _full_s3_key(self, key: str) -> str:
         if self.s3_prefix:
@@ -108,25 +116,33 @@ class CrashRecoveryManager:
         cutoff = datetime.now(timezone.utc) - timedelta(
             seconds=self.claim_timeout_seconds
         )
-        stmt = text(
-            f"""
-            UPDATE {self.source_table}
-            SET {self.status_column} = :pending,
-                {self.claimed_by_column} = NULL,
-                {self.claimed_at_column} = NULL
-            WHERE {self.status_column} = :claimed
-              AND ({self.claimed_at_column} IS NULL OR {self.claimed_at_column} < :cutoff)
-            """
+        tbl = table(
+            self.source_table,
+            column(self.status_column),
+            column(self.claimed_by_column),
+            column(self.claimed_at_column),
+        )
+        stmt = (
+            tbl.update()
+            .where(tbl.c[self.status_column] == self.claimed_status)
+            .where(
+                or_(
+                    tbl.c[self.claimed_at_column].is_(None),
+                    tbl.c[self.claimed_at_column] < cutoff,
+                )
+            )
+            .values(
+                {
+                    self.status_column: self.pending_status,
+                    self.claimed_by_column: None,
+                    self.claimed_at_column: None,
+                }
+            )
         )
 
         async with self.db.session_factory() as session:
             result = await session.execute(
                 stmt,
-                {
-                    "pending": self.pending_status,
-                    "claimed": self.claimed_status,
-                    "cutoff": cutoff,
-                },
             )
             await session.commit()
 
@@ -388,6 +404,14 @@ class CrashRecoveryManager:
                 break
 
         return orphaned
+
+
+def _validate_identifier(identifier: str) -> None:
+    """Ensure SQL identifiers only contain safe characters (alnum/underscore and optional dots)."""
+    pattern = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+    for part in identifier.split("."):
+        if not pattern.fullmatch(part):
+            raise ValueError(f"Unsafe SQL identifier: {identifier!r}")
 
 
 __all__ = ["CrashRecoveryManager"]

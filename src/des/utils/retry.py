@@ -44,7 +44,7 @@ def async_retry(
                         raise exc
                     wait = backoff_base**attempt
                     if jitter:
-                        wait *= random.uniform(0.5, 1.5)
+                        wait *= random.uniform(0.5, 1.5)  # nosec B311 - non-crypto jitter is fine
 
                     logger.warning(
                         "retrying_operation",

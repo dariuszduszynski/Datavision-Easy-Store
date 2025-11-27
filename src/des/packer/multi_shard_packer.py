@@ -6,6 +6,7 @@ import asyncio
 import contextlib
 import os
 import socket
+import tempfile
 import time
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
@@ -114,7 +115,8 @@ class MultiShardPacker:
         self.checkpoint_every_files = self.cfg.get("checkpoint_every_files", 100)
         self.checkpoint_every_seconds = self.cfg.get("checkpoint_every_seconds", 30)
         self.loop_sleep = self.cfg.get("loop_sleep_seconds", 2)
-        self.base_dir = Path(self.cfg.get("work_dir", "/tmp/des_packer"))
+        default_work_dir = Path(tempfile.gettempdir()) / "des_packer"
+        self.base_dir = Path(self.cfg.get("work_dir") or default_work_dir)
         self.base_dir.mkdir(parents=True, exist_ok=True)
         self.holder_id = (
             self.cfg.get("holder_id") or f"{socket.gethostname()}-{os.getpid()}"

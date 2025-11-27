@@ -18,3 +18,7 @@ ignore = []
 
 # Pozwól na autofix dla wszystkich reguł, które to wspierają
 fixable = ["ALL"]
+
+[tool.bandit]
+# Wyklucz katalogi testowe i wirtualne środowiska
+exclude_dirs = ["tests", "venv", ".venv"]

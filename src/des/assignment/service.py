@@ -152,7 +152,7 @@ class NameAssignmentService:
         self.config = config
         self.db = db
 
-    def run_forever(self, host: str = "0.0.0.0", port: int = 8000) -> None:
+    def run_forever(self, host: str = "0.0.0.0", port: int = 8000) -> None:  # nosec B104
         """Serve the FastAPI app using uvicorn."""
         import uvicorn
 
