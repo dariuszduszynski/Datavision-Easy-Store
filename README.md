@@ -1,4 +1,4 @@
-# Datavision Easy Store (DES)
+# Data Easy Store (DES)
 
 Datavision Easy Store packs many small files into compact DES archive containers optimized for S3/HCP-style object storage. The focus is minimal request count, fast random access via byte ranges, and a simple, language-agnostic format.
 
