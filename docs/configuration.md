@@ -6,33 +6,33 @@ DES components are configured primarily via environment variables and YAML files
 
 ### Common
 
-- `DES_DB_URL` (required) – Async SQLAlchemy URL for the metadata database (PostgreSQL recommended), e.g. `postgresql+asyncpg://user:pass@host:5432/des`.
-- `AWS_*` / `AWS_PROFILE` – Standard boto3 credentials for S3/HCP access.
-- `DES_ARCHIVE_BUCKET` – Target bucket for DES archives (used by packer and recovery); optional in name service health checks.
-- `DES_PACKER_WORKDIR` – Local working directory for packer writers (default: OS temp `des_packer`).
+- `DES_DB_URL` — Async SQLAlchemy URL for the metadata database (PostgreSQL recommended). Defaults to `postgresql+asyncpg://des:des@db/des` in stubs.
+- `AWS_*` / `AWS_PROFILE` — Standard boto3 credentials for S3/HCP access.
+- `DES_ARCHIVE_BUCKET` — Target bucket for DES archives (used by packer and recovery).
+- `DES_PACKER_WORKDIR` — Local working directory for packer writers (default: `/app/workdir`).
 
 ### Naming and Sharding
 
-- `DES_NODE_ID` – Node identifier byte for Snowflake names (default: `0`).
-- `DES_WRAP_BITS` – Lower bits of epoch ms to embed in names (default: `32`).
-- `DES_SHARD_BITS` – Number of bits used for shard hashing (default: `8` in name service; varies by source configs).
-- `DES_NAME_PREFIX` – Prefix for generated names in the marker worker (defaults to `SnowflakeNameConfig.prefix`).
+- `DES_NODE_ID` — Node identifier byte for Snowflake names (default: `1`).
+- `DES_WRAP_BITS` — Lower bits of epoch ms to embed in names (default: `10`).
+- `DES_SHARD_BITS` — Number of bits used for shard hashing (default: `8` in code; may be overridden per source configs).
+- `DES_NAME_PREFIX` — Prefix for generated names in the marker worker (defaults to `SnowflakeNameConfig.prefix`).
 
 ### Marker Worker (`des-marker`)
 
-- `DES_MARKER_BATCH_SIZE` – Rows processed per batch (default: `100`).
-- `DES_MARKER_MAX_AGE_DAYS` – Only mark rows older than this age (default: `1`).
-- `DES_MARKER_INTERVAL_SECONDS` – Sleep when idle (default: `5`).
+- `DES_MARKER_BATCH_SIZE` — Rows processed per batch (default: `100`).
+- `DES_MARKER_MAX_AGE_DAYS` — Only mark rows older than this age (default: `1`).
+- `DES_MARKER_INTERVAL_SECONDS` — Sleep when idle (default: `5`).
 
-### Name Assignment Service
+### Name Assignment / API Services
 
-- `DES_ASSIGN_HOST` – Bind address for uvicorn (default: `127.0.0.1` if unset).
+- `DES_ASSIGN_HOST` — Base URL of the assignment service used by packer (default: `http://localhost:8000`).
 
 ### Packer and Recovery
 
-- `DES_ARCHIVE_BUCKET` – Destination bucket for uploads (required by `run_multi_shard_packer.py`).
-- `DES_PACKER_WORKDIR` – Temporary working directory for per-shard writers.
-- `DES_DB_URL` – Metadata DB URL (as above).
+- `DES_ARCHIVE_BUCKET` — Destination bucket for uploads (required by packer/recovery).
+- `DES_PACKER_WORKDIR` — Working directory for per-shard writers (default: `/app/workdir`).
+- `DES_DB_URL` — Metadata DB URL (as above).
 - Retry/backoff values are provided in code (`lock_ttl_seconds`, `batch_size`, `checkpoint` intervals) via the config dict passed to `MultiShardPacker`.
 
 ## YAML Configuration

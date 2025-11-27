@@ -52,6 +52,13 @@ Docker build (packer-focused image):
 docker build -t datavision-easy-store .
 ```
 
+Docker Compose (packer + API stubs):
+
+```bash
+docker-compose up api   # exposes http://localhost:8000/docs
+docker-compose up packer
+```
+
 ## Quickstart
 
 Create and read a DES archive locally:
@@ -85,6 +92,13 @@ export DES_DB_URL="postgresql+asyncpg://des:des@localhost/des"
 uvicorn des.assignment.service:app --host 0.0.0.0 --port 8000
 ```
 
+Run the demo API (FastAPI stub):
+
+```bash
+python scripts/run_api.py
+# or: uvicorn des.api.server:app --host 0.0.0.0 --port 8000
+```
+
 Launch the multi-source packer (requires S3 and metadata DB configured):
 
 ```bash
@@ -96,7 +110,7 @@ python scripts/run_multi_shard_packer.py
 ## Configuration
 
 - Environment variables:
-  - `DES_DB_URL` (required for metadata DB), `DES_ARCHIVE_BUCKET` (S3 destination), `DES_NODE_ID`/`DES_WRAP_BITS`/`DES_SHARD_BITS` (naming and shard hash), `DES_NAME_PREFIX` (marker worker), `DES_MARKER_BATCH_SIZE`, `DES_MARKER_MAX_AGE_DAYS`, `DES_MARKER_INTERVAL_SECONDS`, `DES_PACKER_WORKDIR`, `DES_ASSIGN_HOST`.
+  - `DES_DB_URL` (defaults to `postgresql+asyncpg://des:des@db/des` in stubs), `DES_ARCHIVE_BUCKET` (S3 destination), `DES_NODE_ID` (default `1`), `DES_WRAP_BITS` (default `10`), `DES_SHARD_BITS` (default `8`), `DES_NAME_PREFIX` (marker worker), `DES_MARKER_BATCH_SIZE`, `DES_MARKER_MAX_AGE_DAYS`, `DES_MARKER_INTERVAL_SECONDS`, `DES_PACKER_WORKDIR` (default `/app/workdir`), `DES_ASSIGN_HOST` (default `http://localhost:8000`).
   - AWS credentials are picked up by boto3 for S3 access.
 - Source database configuration: `configs/source_databases.yaml` defines Oracle/MSSQL/MySQL/PostgreSQL sources, column mappings, claim statuses, and shard bits for the multi-source packer.
 - DES format constants (magic, flags, big file thresholds) live in `src/des/core/constants.py`.
