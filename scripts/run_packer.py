@@ -6,6 +6,7 @@ Entrypoint dla Multi-Shard Packer.
 import logging
 import os
 import socket
+import asyncio
 
 from des.assignment.shard_router import ShardAssignment
 from des.config.config import Config
@@ -88,7 +89,7 @@ def main():
     setup_signal_handlers(packer)
 
     # Run
-    packer.run_forever()
+    asyncio.run(packer.run_forever())
 
 
 if __name__ == "__main__":
