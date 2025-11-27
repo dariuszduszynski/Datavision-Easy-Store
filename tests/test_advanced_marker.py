@@ -22,7 +22,7 @@ async def _ensure_tables(engine) -> None:
 @pytest.mark.asyncio
 async def test_rate_limiter_throttles() -> None:
     """Token bucket should slow down bursts to the configured rate."""
-    limiter = TokenBucketRateLimiter(rate=10.0)
+    limiter = TokenBucketRateLimiter(rate=10.0, capacity=1)
 
     start = time.perf_counter()
     for _ in range(20):

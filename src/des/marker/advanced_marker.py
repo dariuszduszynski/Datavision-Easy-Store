@@ -254,12 +254,8 @@ class AdvancedFileMarker:
         MARKER_BATCH_STATS.labels(metric="failed").observe(float(stats.failed))
         MARKER_BATCH_STATS.labels(metric="retried").observe(float(stats.retried))
 
-        self.logger.info(
-            "batch_completed",
-            batch_id=batch_id,
-            duration_seconds=duration_seconds,
-            **stats.__dict__,
-        )
+        log_payload = {**stats.__dict__, "duration_seconds": duration_seconds}
+        self.logger.info("batch_completed", **log_payload)
 
         return stats
 
