@@ -3,7 +3,7 @@
 import asyncio
 import functools
 import random
-from typing import Awaitable, Callable, Iterable, Tuple, Type, TypeVar, ParamSpec
+from typing import Awaitable, Callable, Iterable, ParamSpec, Tuple, Type, TypeVar
 
 import structlog
 

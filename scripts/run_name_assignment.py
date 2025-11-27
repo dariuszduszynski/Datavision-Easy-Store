@@ -4,9 +4,10 @@ Entrypoint dla Name Assignment Service.
 """
 
 import logging
+
+from des.assignment.service import NameAssignmentService
 from des.config.config import Config
 from des.db.postgres import PostgresConnector
-from des.assignment.service import NameAssignmentService
 
 
 def main():

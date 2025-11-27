@@ -127,7 +127,7 @@ def test_s3_des_reader_batch_reads(tmp_path: Path) -> None:
     footer_size = FOOTER_SIZE
     footer_start = file_size - footer_size
 
-    # Batch will likely fetch footer, index, then one combined data range covering all files (contiguous)
+    # Batch likely fetches footer, index, then one combined data range
     combined_start = min(off for off, _ in data_offsets.values())
     combined_end = max(off + length for off, length in data_offsets.values())
     combined_length = combined_end - combined_start

@@ -123,7 +123,7 @@ def test_des_reader_overlapping_regions(tmp_path: Path) -> None:
 
     # Make data_length huge so it overlaps meta region
     with des_path.open("r+b") as f:
-        # data_length is at offset 24 in footer (after magic+version+reserved+data_start)
+        # data_length offset 24 in footer (after magic+version+reserved+data_start)
         f.seek(-FOOTER_SIZE + 24, 2)
         f.write((999999999).to_bytes(8, "little"))
 

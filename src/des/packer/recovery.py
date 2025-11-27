@@ -27,7 +27,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Optional, Set
 
 import structlog
-from sqlalchemy import and_, delete, or_, select, table, update, column
+from sqlalchemy import column, delete, or_, select, table, update
 
 from des.core.constants import MIN_DES_FILE_SIZE
 from des.core.s3_des_reader import S3DesReader
@@ -75,7 +75,7 @@ class CrashRecoveryManager:
             pending_status: Status value representing unclaimed files.
             claimed_status: Status value representing claimed files.
             claim_timeout_seconds: TTL for a claim before it is considered stale.
-            container_grace_seconds: How long to wait before cleaning "writing" containers.
+            container_grace_seconds: How long to wait before cleaning stuck containers.
             cleanup_orphaned_s3: Whether to delete S3 objects that have no DB record.
         """
         self.db = db
@@ -407,7 +407,7 @@ class CrashRecoveryManager:
 
 
 def _validate_identifier(identifier: str) -> None:
-    """Ensure SQL identifiers only contain safe characters (alnum/underscore and optional dots)."""
+    """Ensure identifiers only contain safe chars (alnum/underscore and dots)."""
     pattern = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
     for part in identifier.split("."):
         if not pattern.fullmatch(part):

@@ -14,7 +14,8 @@ VERSION = 1
 HEADER_STRUCT = struct.Struct("<8sB7s")
 
 # Footer: magic(8) + version(1) + reserved(7) + 7 x Q (uint64) = 72 bytes
-# Fields: data_start, data_length, meta_start, meta_length, index_start, index_length, file_count
+# Fields: data_start, data_length, meta_start, meta_length,
+# index_start, index_length, file_count
 FOOTER_STRUCT = struct.Struct("<8sB7sQQQQQQQ")
 
 # Index entry fixed part: 5 x Q + I = 44 bytes

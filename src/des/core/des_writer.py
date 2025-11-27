@@ -6,7 +6,7 @@ import io
 import json
 import os
 import struct
-from typing import Any, BinaryIO, Dict, List, Optional, Literal
+from typing import Any, BinaryIO, Dict, List, Literal, Optional
 
 from des.core.constants import (
     DEFAULT_BIG_FILE_THRESHOLD,
@@ -198,7 +198,8 @@ class DesWriter:
         name_bytes = name.encode("utf-8")
         if len(name_bytes) > MAX_FILENAME_LENGTH:
             raise ValueError(
-                f"Filename too long: {len(name_bytes)} bytes (max {MAX_FILENAME_LENGTH})"
+                f"Filename too long: {len(name_bytes)} bytes "
+                f"(max {MAX_FILENAME_LENGTH})"
             )
 
         # Check for invalid characters
@@ -207,14 +208,17 @@ class DesWriter:
         invalid_chars = set('/\\:*?"<>|')
         if any(c in invalid_chars for c in name):
             raise ValueError(
-                f'Invalid filename: {name!r} (contains forbidden characters: / \\ : * ? " < > |)'
+                f"Invalid filename: {name!r} "
+                '(contains forbidden characters: / \\ : * ? " < > |)'
             )
 
         # Ensure only printable ASCII or valid UTF-8
         try:
             name.encode("utf-8")
-        except UnicodeEncodeError:
-            raise ValueError(f"Invalid filename: {name!r} (contains invalid Unicode)")
+        except UnicodeEncodeError as exc:
+            raise ValueError(
+                f"Invalid filename: {name!r} (contains invalid Unicode)"
+            ) from exc
 
     def _upload_external_file(self, name: str, data: bytes) -> None:
         """
@@ -363,10 +367,12 @@ class DesWriter:
         print(f"DES archive created: {self.path}")
         print(f"  Total files: {stats['total_files']}")
         print(
-            f"  Internal: {stats['internal_files']} ({stats['internal_size_bytes']:,} bytes)"
+            f"  Internal: {stats['internal_files']} "
+            f"({stats['internal_size_bytes']:,} bytes)"
         )
         print(
-            f"  External: {stats['external_files']} ({stats['external_size_bytes']:,} bytes)"
+            f"  External: {stats['external_files']} "
+            f"({stats['external_size_bytes']:,} bytes)"
         )
 
     def __enter__(self) -> "DesWriter":

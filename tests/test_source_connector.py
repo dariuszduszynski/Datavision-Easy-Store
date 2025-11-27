@@ -6,10 +6,10 @@ from pathlib import Path
 
 import pytest
 from sqlalchemy import (
+    BigInteger,
     Column,
     DateTime,
     Integer,
-    BigInteger,
     MetaData,
     String,
     Table,

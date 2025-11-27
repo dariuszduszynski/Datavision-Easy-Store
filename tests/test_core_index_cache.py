@@ -47,7 +47,7 @@ def test_in_memory_index_cache_round_trip() -> None:
 
     assert result is not None
     assert len(result) == len(entries)
-    for a, b in zip(result, entries):
+    for a, b in zip(result, entries, strict=False):
         assert a.name == b.name
         assert a.data_offset == b.data_offset
         assert a.data_length == b.data_length
@@ -112,7 +112,7 @@ def test_redis_index_cache_round_trip() -> None:
 
     assert result is not None
     assert len(result) == len(entries)
-    for a, b in zip(result, entries):
+    for a, b in zip(result, entries, strict=False):
         assert a.name == b.name
         assert a.data_offset == b.data_offset
         assert a.data_length == b.data_length

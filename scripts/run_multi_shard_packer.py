@@ -6,14 +6,14 @@ import asyncio
 import logging
 import os
 import tempfile
+from pathlib import Path
 
 import boto3
-
-from des.db.source_config import MultiSourceConfig
 from des.db.connector import DesDbConnector
+from des.db.source_config import MultiSourceConfig
+from des.packer.multi_shard_packer import MultiShardPacker
 from des.packer.source_provider import MultiSourceFileProvider
 from des.packer.storage import S3StorageBackend
-from des.packer.multi_shard_packer import MultiShardPacker
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -57,7 +57,8 @@ async def main():
             config={
                 "batch_size": 100,
                 "work_dir": os.getenv(
-                    "DES_PACKER_WORKDIR", str(Path(tempfile.gettempdir()) / "des_packer")
+                    "DES_PACKER_WORKDIR",
+                    str(Path(tempfile.gettempdir()) / "des_packer"),
                 ),
                 "holder_id": holder_id,
             },

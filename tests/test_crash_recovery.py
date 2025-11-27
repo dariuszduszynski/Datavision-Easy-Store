@@ -3,12 +3,11 @@ from pathlib import Path
 
 import boto3
 import pytest
-from moto import mock_aws
-from sqlalchemy import insert, select, text
-
 from des.core.des_writer import DesWriter
 from des.db.connector import DesContainer, DesDbConnector, ShardLock
 from des.packer.recovery import CrashRecoveryManager
+from moto import mock_aws
+from sqlalchemy import insert, select, text
 
 
 @pytest.fixture
@@ -81,7 +80,8 @@ async def test_recover_stale_claims_basic(db_connector):
         rows = (
             await session.execute(
                 text(
-                    "SELECT status, claimed_by, claimed_at FROM source_files ORDER BY id"
+                    "SELECT status, claimed_by, claimed_at "
+                    "FROM source_files ORDER BY id"
                 )
             )
         ).all()

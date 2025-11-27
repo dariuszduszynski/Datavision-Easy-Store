@@ -1,10 +1,10 @@
 import sys
 from pathlib import Path
+from typing import Any
 
 import boto3
 import pytest
 from moto import mock_aws as mock_s3
-from typing import Any
 
 # Ensure src/ is on sys.path for local test runs without installation
 PROJECT_ROOT = Path(__file__).resolve().parent.parent

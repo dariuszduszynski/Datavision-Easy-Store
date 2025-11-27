@@ -131,14 +131,14 @@ def assign(request: AssignRequest) -> AssignResponse:
         )
     except ValueError as exc:
         log_event("invalid_request", error=str(exc))
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     name = generator.next_name(day=day)
     try:
         shard_id = consistent_hash(name, SHARD_BITS)
     except ValueError as exc:
         log_event("invalid_shard_bits", error=str(exc))
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     response = AssignResponse(name=name, shard_id=shard_id, day=day.isoformat())
     log_event("assigned", name=name, shard_id=shard_id, day=response.day)
@@ -152,8 +152,13 @@ class NameAssignmentService:
         self.config = config
         self.db = db
 
-    def run_forever(self, host: str = "0.0.0.0", port: int = 8000) -> None:  # nosec B104
+    def run_forever(self, host: Optional[str] = None, port: int = 8000) -> None:
         """Serve the FastAPI app using uvicorn."""
         import uvicorn
 
-        uvicorn.run("des.assignment.service:app", host=host, port=port, reload=False)
+        bind_host: str = (
+            host or os.getenv("DES_ASSIGN_HOST", "127.0.0.1") or "127.0.0.1"
+        )
+        uvicorn.run(
+            "des.assignment.service:app", host=bind_host, port=port, reload=False
+        )

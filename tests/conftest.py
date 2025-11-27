@@ -5,20 +5,20 @@ from typing import AsyncIterator, Dict, List
 import boto3
 import pytest
 import pytest_asyncio
+from des.db.connector import Base, DesDbConnector
+from des.packer.multi_shard_packer import PendingFile
 from moto import mock_aws
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
-
-from des.db.connector import Base, DesDbConnector
-from des.packer.multi_shard_packer import PendingFile
 
 
 def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line("markers", "unit: fast unit tests")
     config.addinivalue_line(
         "markers",
-        "integration: tests that require external services or are slower (S3, Redis, DB, etc.)",
+        "integration: tests that require external services or are slower "
+        "(S3, Redis, DB, etc.)",
     )
     config.addinivalue_line("markers", "s3: tests that interact with S3 or moto S3")
     config.addinivalue_line("markers", "slow: slow-running tests")

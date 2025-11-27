@@ -60,7 +60,9 @@ class FileMarkerWorker:
             except Exception as exc:  # noqa: BLE001
                 # Fallback quietly on dialects that do not support FOR UPDATE.
                 self.logger.warning(
-                    "dialect_no_for_update", dialect=getattr(dialect, "name", ""), error=str(exc)
+                    "dialect_no_for_update",
+                    dialect=getattr(dialect, "name", ""),
+                    error=str(exc),
                 )
 
         result = await session.execute(stmt)

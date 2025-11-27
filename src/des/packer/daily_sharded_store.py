@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Iterable, Optional, Tuple
 
 from des.core import DesWriter
-from des.utils.snowflake_name import SnowflakeNameGenerator, SnowflakeNameConfig
+from des.utils.snowflake_name import SnowflakeNameConfig, SnowflakeNameGenerator
 
 
 def shard_from_name(name: str, shard_bits: int) -> int:

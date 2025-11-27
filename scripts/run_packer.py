@@ -3,11 +3,12 @@
 Entrypoint dla Multi-Shard Packer.
 """
 
-import os
 import logging
+import os
+
+from des.assignment.shard_router import ShardAssignment
 from des.config.config import Config
 from des.db.postgres import PostgresConnector
-from des.assignment.shard_router import ShardAssignment
 from des.packer.multi_shard_packer import MultiShardPacker
 from des.utils.signals import setup_signal_handlers
 

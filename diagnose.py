@@ -147,7 +147,7 @@ def check_imports():
     # Test 7: Import from des.core
     print("\n[7/7] Import from des.core (główny)...")
     try:
-        from des.core import DesWriter, DesReader, S3DesReader
+        from des.core import DesReader, DesWriter, S3DesReader
 
         print(f"  ✓ OK - DesWriter={DesWriter}")
         print(f"  ✓ OK - DesReader={DesReader}")
@@ -192,34 +192,34 @@ Datavision-Easy-Store/
 KROKI NAPRAWY:
 
 1. Sprawdź czy masz src/des/__init__.py:
-   
+
    Zawartość (minimalna):
    '''
    __version__ = '1.0.0'
    '''
 
 2. Sprawdź czy masz src/des/core/__init__.py:
-   
+
    Zawartość - zobacz plik który Ci wysłałem w archiwum!
 
 3. Uruchom testy z poziomu głównego katalogu:
-   
+
    cd Datavision-Easy-Store
    python tests/test_core.py
 
 4. Jeśli dalej nie działa, dodaj src do PYTHONPATH:
-   
+
    # Windows CMD:
    set PYTHONPATH=%CD%\\src
-   
+
    # Windows PowerShell:
    $env:PYTHONPATH = "$PWD\\src"
-   
+
    # Linux/Mac:
    export PYTHONPATH=$PWD/src
 
 5. Lub dodaj src do sys.path w każdym skrypcie:
-   
+
    import sys
    import os
    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))

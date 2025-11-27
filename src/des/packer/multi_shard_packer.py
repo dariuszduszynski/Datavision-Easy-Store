@@ -14,6 +14,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Protocol
 
 from botocore.exceptions import ClientError
+from sqlalchemy import insert, update
+from sqlalchemy.exc import DBAPIError
+
 from des.core.des_writer import DesWriter
 from des.db.connector import DesContainer, DesDbConnector
 from des.monitoring.metrics import (
@@ -24,8 +27,6 @@ from des.monitoring.metrics import (
 )
 from des.utils.logging import get_logger, log_context
 from des.utils.retry import async_retry
-from sqlalchemy import insert, update
-from sqlalchemy.exc import DBAPIError
 
 logger = get_logger(__name__)
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import struct
-from typing import Any, Dict, List, Optional, Sequence, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, cast
 
 import boto3
 
@@ -21,8 +21,6 @@ from des.core.constants import (
     VERSION,
 )
 from des.core.models import DesStats, IndexEntry
-
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from des.core.cache import IndexCacheBackend
@@ -134,8 +132,8 @@ class S3DesReader:
             )
             body = resp["Body"]
             return cast(bytes, body.read())
-        except self.s3.exceptions.NoSuchKey:
-            raise KeyError(f"External file not found: {external_key}")
+        except self.s3.exceptions.NoSuchKey as exc:
+            raise KeyError(f"External file not found: {external_key}") from exc
 
     def get_file(self, name: str) -> bytes:
         """
@@ -319,7 +317,10 @@ class S3DesReader:
         return name in self._index_by_name
 
     def __repr__(self) -> str:
-        return f"S3DesReader(bucket={self.bucket!r}, key={self.key!r}, files={self.file_count})"
+        return (
+            f"S3DesReader(bucket={self.bucket!r}, "
+            f"key={self.key!r}, files={self.file_count})"
+        )
 
     # ========== Internal helper methods ==========
 

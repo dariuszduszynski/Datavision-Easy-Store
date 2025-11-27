@@ -5,10 +5,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
+from des.db.connector import Base
 from sqlalchemy import DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
-
-from des.db.connector import Base
 
 
 class CatalogEntry(Base):

@@ -1,6 +1,6 @@
 # snowflake_name.py
-import time
 import threading
+import time
 from dataclasses import dataclass
 from datetime import date
 
@@ -68,7 +68,8 @@ class SnowflakeNameGenerator:
             # wrzucamy t_low w najstarsze bity z dostępnych 48
             # czyli:
             #  F = (t_low << (16)) | (node_id << 8) | seq
-            # wrap_bits <= 32, więc t_low pasuje w 32 bity, a my i tak mamy 16 b na node+seq
+            # wrap_bits <= 32, więc t_low pasuje w 32 bity,
+            # a my i tak mamy 16 b na node+seq
             f = (t_low << 16) | ((self.config.node_id & 0xFF) << 8) | (self._seq & 0xFF)
             # upewniamy się, że to 48 bitów
             return f & ((1 << 48) - 1)

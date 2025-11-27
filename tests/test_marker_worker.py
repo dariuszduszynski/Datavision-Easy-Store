@@ -3,12 +3,11 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import async_sessionmaker
-
 from des.db.catalog import CatalogEntry
 from des.db.connector import Base
 from des.marker.file_marker import FileMarkerWorker
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
 
 async def _ensure_tables(engine) -> None:

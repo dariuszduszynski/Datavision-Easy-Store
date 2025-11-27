@@ -7,16 +7,16 @@ import os
 import struct
 from typing import Any, BinaryIO, Optional, Sequence, cast
 
+from des.core.cache import IndexCacheBackend
 from des.core.constants import (
-    FOOTER_SIZE,
-    FOOTER_STRUCT,
-    FOOTER_MAGIC,
-    VERSION,
+    DEFAULT_MAX_GAP_SIZE,
     ENTRY_FIXED_STRUCT,
     FLAG_IS_EXTERNAL,
-    DEFAULT_MAX_GAP_SIZE,
+    FOOTER_MAGIC,
+    FOOTER_SIZE,
+    FOOTER_STRUCT,
+    VERSION,
 )
-from des.core.cache import IndexCacheBackend
 from des.core.models import DesStats, IndexEntry
 
 
@@ -104,7 +104,8 @@ class DesReader:
         min_entry_size = 2 + ENTRY_FIXED_STRUCT.size
         if self.file_count * min_entry_size > self.index_length:
             raise ValueError(
-                f"Invalid file_count in footer: {self.file_count} (index too small: {self.index_length} bytes)"
+                f"Invalid file_count in footer: {self.file_count} "
+                f"(index too small: {self.index_length} bytes)"
             )
 
         # Validate regions don't overlap and fit in file

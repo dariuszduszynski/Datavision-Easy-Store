@@ -5,7 +5,6 @@ import time
 from unittest.mock import AsyncMock
 
 import pytest
-
 from des.utils.retry import async_retry
 
 pytestmark = pytest.mark.asyncio

@@ -1,14 +1,14 @@
 """Datavision Easy Store (DES) - Distributed archival system."""
 
 from .core import (
-    DesWriter,
+    FLAG_IS_EXTERNAL,
     DesReader,
-    S3DesReader,
+    DesWriter,
     InMemoryIndexCache,
     RedisIndexCache,
-    FLAG_IS_EXTERNAL,
+    S3DesReader,
 )
-from .utils import SnowflakeNameGenerator, SnowflakeNameConfig
+from .utils import SnowflakeNameConfig, SnowflakeNameGenerator
 
 __all__ = [
     "DesWriter",

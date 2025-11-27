@@ -8,13 +8,12 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, cast
 
+from des.assignment.hash_routing import consistent_hash
+from des.db.source_config import DatabaseType, SourceDatabaseConfig
 from sqlalchemy import MetaData, Table, and_, create_engine, select, text, update
 from sqlalchemy.engine import Engine
 from sqlalchemy.pool import QueuePool
 from sqlalchemy.sql.elements import ColumnElement
-
-from des.assignment.hash_routing import consistent_hash
-from des.db.source_config import DatabaseType, SourceDatabaseConfig
 
 logger = logging.getLogger(__name__)
 
@@ -332,7 +331,7 @@ class SourceDatabaseConnector:
             if hasattr(table.c, "des_name"):
                 # Map file_id → des_name
                 # For simplicity, update in loop (or use CASE WHEN for batch)
-                for file_id, des_name in zip(file_ids, des_names):
+                for file_id, des_name in zip(file_ids, des_names, strict=False):
                     stmt = (
                         update(table)
                         .where(table.c[cols.id] == file_id)

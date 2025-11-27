@@ -169,4 +169,7 @@ class ExternalFileInfo:
 
     def __repr__(self) -> str:
         size_str = DesStats._human_size(self.size_bytes)
-        return f"ExternalFileInfo(name={self.name!r}, key={self.s3_key!r}, size={size_str})"
+        return (
+            f"ExternalFileInfo(name={self.name!r}, "
+            f"key={self.s3_key!r}, size={size_str})"
+        )

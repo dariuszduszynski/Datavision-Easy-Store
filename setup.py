@@ -1,4 +1,4 @@
-from setuptools import setup, find_packages  # type: ignore[import-untyped]
+from setuptools import find_packages, setup  # type: ignore[import-untyped]
 
 setup(
     name="datavision-easy-store",

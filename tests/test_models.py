@@ -10,8 +10,17 @@ SRC_DIR = PROJECT_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from des.core.models import IndexEntry, DesStats, DesFooter, ExternalFileInfo  # noqa: E402
-from des.core.constants import FLAG_IS_EXTERNAL, FLAG_COMPRESSED, FLAG_ENCRYPTED  # noqa: E402
+from des.core.constants import (  # noqa: E402
+    FLAG_COMPRESSED,
+    FLAG_ENCRYPTED,
+    FLAG_IS_EXTERNAL,
+)
+from des.core.models import (  # noqa: E402
+    DesFooter,
+    DesStats,
+    ExternalFileInfo,
+    IndexEntry,
+)
 
 
 @pytest.mark.unit

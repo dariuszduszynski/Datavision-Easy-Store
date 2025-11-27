@@ -2,12 +2,11 @@ import asyncio
 from typing import Dict
 
 import pytest
-from sqlalchemy import select, text
-
 from des.core.s3_des_reader import S3DesReader
 from des.db.connector import DesContainer
 from des.packer.multi_shard_packer import MultiShardPacker, PendingFile
 from des.packer.storage import S3StorageBackend
+from sqlalchemy import select, text
 
 
 @pytest.mark.asyncio
@@ -37,7 +36,8 @@ async def test_full_migration_flow(
         for idx, name in enumerate(test_files.keys(), start=1):
             await session.execute(
                 text(
-                    "INSERT INTO source_files (id, shard_id, name, status, claimed_by, claimed_at) "
+                    "INSERT INTO source_files "
+                    "(id, shard_id, name, status, claimed_by, claimed_at) "
                     "VALUES (:id, :shard_id, :name, :status, NULL, NULL)"
                 ),
                 {"id": idx, "shard_id": shard_id, "name": name, "status": "pending"},
