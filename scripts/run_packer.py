@@ -5,6 +5,7 @@ Entrypoint dla Multi-Shard Packer.
 
 import logging
 import os
+import socket
 
 from des.assignment.shard_router import ShardAssignment
 from des.config.config import Config
@@ -12,12 +13,31 @@ from des.db.postgres import PostgresConnector
 from des.packer.multi_shard_packer import MultiShardPacker
 from des.utils.signals import setup_signal_handlers
 
+logger = logging.getLogger(__name__)
+
 
 def extract_pod_index() -> int:
-    """Extract pod index from hostname"""
-    hostname = os.environ["HOSTNAME"]
-    # des-packer-7 → 7
-    return int(hostname.split("-")[-1])
+    """Extract pod index from env/hostname; default to 0 when unavailable."""
+    env_value = os.getenv("DES_POD_INDEX")
+    if env_value is not None:
+        try:
+            return int(env_value)
+        except ValueError:
+            logger.warning(
+                "Invalid DES_POD_INDEX; attempting hostname-derived index",
+                extra={"value": env_value},
+            )
+
+    hostname = socket.gethostname()
+    suffix = hostname.split("-")[-1]
+    if suffix.isdigit():
+        return int(suffix)
+
+    logger.warning(
+        "Hostname does not end with numeric pod index; defaulting to 0",
+        extra={"hostname": hostname},
+    )
+    return 0
 
 
 def main():
