@@ -16,6 +16,21 @@ from des.utils.signals import setup_signal_handlers
 logger = logging.getLogger(__name__)
 
 
+class DummySourceProvider:
+    async def get_pending_files(self, shard_id: int, limit: int):
+        logger.info(
+            "DummySourceProvider.get_pending_files stub", extra={"shard_id": shard_id, "limit": limit}
+        )
+        return []
+
+
+class NullStorageBackend:
+    async def upload(self, local_path: str, dest_key: str) -> None:
+        logger.info(
+            "NullStorageBackend.upload stub", extra={"local_path": local_path, "dest_key": dest_key}
+        )
+
+
 def extract_pod_index() -> int:
     """Extract pod index from env/hostname; default to 0 when unavailable."""
     env_value = os.getenv("DES_POD_INDEX")
@@ -60,7 +75,14 @@ def main():
     )
 
     # Create packer
-    packer = MultiShardPacker(pod_index, assignment, config, db)
+    shard_ids = assignment.get_shards_for_pod(pod_index)
+    packer = MultiShardPacker(
+        db=db,
+        storage=NullStorageBackend(),
+        shard_ids=shard_ids,
+        config=None,
+        source_provider=DummySourceProvider(),
+    )
 
     # Setup graceful shutdown
     setup_signal_handlers(packer)
