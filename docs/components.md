@@ -48,7 +48,10 @@ This document summarizes the main modules and public-facing classes/functions in
 
 ## Marker Worker (`src/des/marker`)
 
-- **`file_marker.py`** — `FileMarkerWorker` that scans catalog rows, assigns Snowflake names/hashes/shard IDs, and marks rows for DES packing (`des_status = DES_TODO`), respecting max age and batch size. Intended to run continuously (`des-marker` entrypoint).
+- **`advanced_marker.py`** - Enhanced marker with retries, rate limiting, DLQ support, metrics, and graceful shutdown.
+- **`models.py`** - MarkerConfig/MarkerStats/MarkerStatus data structures for configuration and reporting.
+- **`rate_limiter.py`** - TokenBucketRateLimiter protecting the source DB from overload.
+- **`file_marker.py`** - Legacy `FileMarkerWorker` kept for backward compatibility.
 
 ## Scripts & Entry Points (`scripts/`, `setup.py`)
 

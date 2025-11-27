@@ -1,26 +1,127 @@
 version: "3.9"
 
 services:
+  # Metadata database
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: des
+      POSTGRES_USER: des
+      POSTGRES_PASSWORD: des_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U des"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  marker:
+    build:
+      context: .
+      dockerfile: Dockerfile.marker
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DES_DB_URL: "postgresql+asyncpg://des:des_password@db:5432/des"
+      DES_MARKER_BATCH_SIZE: "100"
+      DES_MARKER_MAX_AGE_DAYS: "1"
+      DES_MARKER_INTERVAL_SECONDS: "5"
+      DES_MARKER_MAX_RETRIES: "3"
+      DES_MARKER_RATE_LIMIT: "50.0"
+      DES_MARKER_ENABLE_DLQ: "true"
+      DES_NODE_ID: "1"
+      DES_NAME_PREFIX: "DES"
+      DES_WRAP_BITS: "32"
+      DES_SHARD_BITS: "8"
+      DES_METRICS_PORT: "9101"
+      LOG_LEVEL: "INFO"
+    ports:
+      - "9101:9101"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9101/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
   packer:
     build: .
     environment:
-      DES_DB_URL:
-      DES_ARCHIVE_BUCKET:
-      DES_NODE_ID:
-      DES_WRAP_BITS:
-      DES_SHARD_BITS:
-      DES_PACKER_WORKDIR:
-      DES_ASSIGN_HOST:
+      DES_DB_URL: "postgresql+asyncpg://des:des_password@db:5432/des"
+      DES_ARCHIVE_BUCKET: "des-archive"
+      DES_NODE_ID: "1"
+      DES_WRAP_BITS: "32"
+      DES_SHARD_BITS: "8"
+      DES_PACKER_WORKDIR: "/app/workdir"
+      DES_ASSIGN_HOST: "http://api:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
   api:
     build: .
     command: python scripts/run_api.py
     ports:
       - "8000:8000"
     environment:
-      DES_DB_URL:
-      DES_ARCHIVE_BUCKET:
-      DES_NODE_ID:
-      DES_SHARD_BITS:
-      DES_WRAP_BITS:
-      DES_PACKER_WORKDIR:
-      DES_ASSIGN_HOST:
+      DES_DB_URL: "postgresql+asyncpg://des:des_password@db:5432/des"
+      DES_ARCHIVE_BUCKET: "des-archive"
+      DES_NODE_ID: "1"
+      DES_SHARD_BITS: "8"
+      DES_WRAP_BITS: "32"
+      DES_PACKER_WORKDIR: "/app/workdir"
+      DES_ASSIGN_HOST: "http://api:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+
+  grafana:
+    image: grafana/grafana:latest
+    depends_on:
+      - prometheus
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_INSTALL_PLUGINS: grafana-piechart-panel
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./config/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./config/grafana/datasources:/etc/grafana/provisioning/datasources
+
+volumes:
+  postgres_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:

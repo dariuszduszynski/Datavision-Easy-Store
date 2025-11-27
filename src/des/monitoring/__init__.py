@@ -2,6 +2,17 @@
 Monitoring utilities for DES.
 """
 
+from des.monitoring.marker_metrics import (
+    MARKER_BATCH_DURATION,
+    MARKER_BATCH_SIZE,
+    MARKER_BATCH_STATS,
+    MARKER_DLQ_ENTRIES,
+    MARKER_ENTRIES_MARKED,
+    MARKER_ENTRY_LATENCY,
+    MARKER_ERRORS,
+    MARKER_RATE_LIMIT,
+    MARKER_RETRIES,
+)
 from des.monitoring.metrics import (
     CONTENT_TYPE_LATEST,
     PACKED_BYTES,
@@ -18,4 +29,13 @@ __all__ = [
     "PACKER_LOOP_DURATION",
     "CONTENT_TYPE_LATEST",
     "generate_latest",
+    "MARKER_ENTRIES_MARKED",
+    "MARKER_ERRORS",
+    "MARKER_RETRIES",
+    "MARKER_DLQ_ENTRIES",
+    "MARKER_BATCH_SIZE",
+    "MARKER_RATE_LIMIT",
+    "MARKER_BATCH_DURATION",
+    "MARKER_ENTRY_LATENCY",
+    "MARKER_BATCH_STATS",
 ]

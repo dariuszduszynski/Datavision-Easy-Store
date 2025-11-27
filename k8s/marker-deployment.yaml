@@ -1,0 +1,163 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: des-marker-config
+  namespace: des
+data:
+  DES_MARKER_BATCH_SIZE: "200"
+  DES_MARKER_MAX_AGE_DAYS: "1"
+  DES_MARKER_INTERVAL_SECONDS: "5"
+  DES_MARKER_MAX_RETRIES: "3"
+  DES_MARKER_RATE_LIMIT: "100.0"
+  DES_MARKER_ENABLE_DLQ: "true"
+  DES_NODE_ID: "0"
+  DES_NAME_PREFIX: "DES"
+  DES_WRAP_BITS: "32"
+  DES_SHARD_BITS: "8"
+  DES_METRICS_PORT: "9101"
+  LOG_LEVEL: "INFO"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: des-marker-secrets
+  namespace: des
+type: Opaque
+stringData:
+  DES_DB_URL: postgresql+asyncpg://des:CHANGE_ME@postgres-service:5432/des
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: des-marker
+  namespace: des
+  labels:
+    app: des-marker
+    component: worker
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: des-marker
+  template:
+    metadata:
+      labels:
+        app: des-marker
+        component: worker
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9101"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: des-marker
+      terminationGracePeriodSeconds: 60
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - des-marker
+                topologyKey: kubernetes.io/hostname
+      containers:
+        - name: marker
+          image: ghcr.io/YOUR_ORG/des-marker:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: des-marker-config
+            - secretRef:
+                name: des-marker-secrets
+          ports:
+            - name: metrics
+              containerPort: 9101
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: metrics
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: metrics
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 2
+          startupProbe:
+            httpGet:
+              path: /health/live
+              port: metrics
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - sleep 15
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: des-marker-metrics
+  namespace: des
+  labels:
+    app: des-marker
+spec:
+  type: ClusterIP
+  selector:
+    app: des-marker
+  ports:
+    - name: metrics
+      port: 9101
+      targetPort: 9101
+      protocol: TCP
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: des-marker
+  namespace: des
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: des-marker
+  namespace: des
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: des-marker
+  namespace: des
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: des-marker
+subjects:
+  - kind: ServiceAccount
+    name: des-marker
+    namespace: des

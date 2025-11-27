@@ -21,6 +21,54 @@ The core package (`des.core`) defines the DES file format, readers, writers, and
 - **Services & workers:** FastAPI name assignment service (`des.assignment.service`) and marker worker (`des.marker.file_marker`) that tags source catalog rows ready for packing.
 - **Monitoring:** Prometheus metrics (`des.monitoring.metrics`) and health checks (`des.packer.health`).
 
+## Marker Worker
+
+The Marker Worker prepares catalog entries for DES packing by generating names, hashes, and shard assignments.
+
+### Key Features
+- Atomic Snowflake-style name generation with shard routing.
+- Exponential backoff retries and dead-letter queue for permanent failures.
+- Optional token-bucket rate limiting to protect source databases.
+- Prometheus metrics with ready/live probes and Docker/K8s manifests.
+- Graceful shutdown that finishes the current batch before exiting.
+- Horizontal scaling via `FOR UPDATE SKIP LOCKED` row locking.
+
+### Quick Start
+
+Docker Compose:
+
+```bash
+docker-compose up marker
+```
+
+Kubernetes:
+
+```bash
+kubectl apply -f k8s/marker-deployment.yaml
+kubectl apply -f k8s/marker-hpa.yaml
+```
+
+### Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DES_MARKER_BATCH_SIZE` | 100 | Rows processed per batch |
+| `DES_MARKER_MAX_AGE_DAYS` | 1 | Only process rows older than N days |
+| `DES_MARKER_INTERVAL_SECONDS` | 5 | Sleep duration when idle |
+| `DES_MARKER_MAX_RETRIES` | 3 | Retry attempts for transient errors |
+| `DES_MARKER_RATE_LIMIT` | - | Max operations per second (optional) |
+| `DES_MARKER_ENABLE_DLQ` | true | Enable dead letter queue |
+
+### Monitoring
+
+Prometheus metrics are exposed on port `9101`:
+- `des_marker_entries_marked_total` - Total entries marked
+- `des_marker_batch_duration_seconds` - Batch processing time
+- `des_marker_errors_total` - Error counts by type
+- `des_marker_retries_total` - Retry attempts
+
+Grafana dashboard template: `config/grafana/dashboards/marker.json`
+
 ## Requirements
 
 - Python 3.11+

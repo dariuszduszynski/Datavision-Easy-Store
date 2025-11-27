@@ -1,0 +1,15 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: des-marker
+  namespace: des
+  labels:
+    app: des-marker
+spec:
+  selector:
+    matchLabels:
+      app: des-marker
+  endpoints:
+    - port: metrics
+      interval: 15s
+      path: /metrics

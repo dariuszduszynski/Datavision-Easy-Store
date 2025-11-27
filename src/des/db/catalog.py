@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Optional
 
 from des.db.connector import Base
-from sqlalchemy import DateTime, Integer, String
+from sqlalchemy import DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 
@@ -24,6 +24,8 @@ class CatalogEntry(Base):
     des_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     des_shard: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     des_status: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    retry_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=0)
+    last_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     source_bucket: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     source_key: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True)

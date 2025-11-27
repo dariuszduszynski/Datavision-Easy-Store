@@ -1,0 +1,22 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "des-marker"
+    static_configs:
+      - targets: ["marker:9101"]
+        labels:
+          service: "marker"
+
+  - job_name: "des-packer"
+    static_configs:
+      - targets: ["packer:9100"]
+        labels:
+          service: "packer"
+
+  - job_name: "des-api"
+    static_configs:
+      - targets: ["api:8000"]
+        labels:
+          service: "api"
