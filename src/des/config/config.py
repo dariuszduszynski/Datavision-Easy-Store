@@ -34,6 +34,13 @@ class Config:
     def __init__(self) -> None:
         self.database: Optional[DatabaseConfig] = None
         self.migration: Optional[MigrationConfig] = None
+        self.db_url: str = ""
+        self.archive_bucket: str = ""
+        self.node_id: int = 0
+        self.wrap_bits: int = 0
+        self.shard_bits: int = 0
+        self.packer_workdir: str = ""
+        self.assign_host: str = ""
 
     @classmethod
     def from_yaml(cls, path: str) -> "Config":
@@ -85,12 +92,12 @@ class Config:
         config.database = database_cfg
         config.migration = migration_cfg
 
-        config.db_url: str = db_url
-        config.archive_bucket: str = archive_bucket
-        config.node_id: int = node_id
-        config.wrap_bits: int = wrap_bits
-        config.shard_bits: int = shard_bits
-        config.packer_workdir: str = packer_workdir
-        config.assign_host: str = assign_host
+        config.db_url = db_url
+        config.archive_bucket = archive_bucket
+        config.node_id = node_id
+        config.wrap_bits = wrap_bits
+        config.shard_bits = shard_bits
+        config.packer_workdir = packer_workdir
+        config.assign_host = assign_host
 
         return config

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import re
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -266,25 +267,29 @@ class AdvancedFileMarker:
         error: str,
     ) -> None:
         """Send failed entry to dead letter queue for investigation."""
-        from sqlalchemy import text
+        from sqlalchemy import Column, DateTime, Integer, MetaData, Table, Text
 
-        dlq_insert = text(
-            f"""
-            INSERT INTO {self.config.dlq_table}
-                (catalog_entry_id, created_at, error_message, retry_count)
-            VALUES
-                (:entry_id, :created_at, :error, :retry_count)
-        """
+        table_name = self._validate_identifier(self.config.dlq_table)
+
+        metadata = MetaData()
+        dlq_table = Table(
+            table_name,
+            metadata,
+            Column("catalog_entry_id", Integer, nullable=False),
+            Column("created_at", DateTime(timezone=True), nullable=False),
+            Column("error_message", Text, nullable=True),
+            Column("retry_count", Integer, nullable=True),
+        )
+
+        dlq_insert = dlq_table.insert().values(
+            catalog_entry_id=entry.id,
+            created_at=datetime.now(timezone.utc),
+            error_message=error[:500],
+            retry_count=self.config.max_retries,
         )
 
         await session.execute(
             dlq_insert,
-            {
-                "entry_id": entry.id,
-                "created_at": datetime.now(timezone.utc),
-                "error": error[:500],
-                "retry_count": self.config.max_retries,
-            },
         )
 
     async def run_forever(self, interval_seconds: int = 5) -> None:
@@ -334,3 +339,10 @@ class AdvancedFileMarker:
     def stop(self) -> None:
         """Signal shutdown from synchronous contexts (e.g., signal handlers)."""
         self._shutdown.set()
+
+    @staticmethod
+    def _validate_identifier(identifier: str) -> str:
+        """Validate SQL identifier to mitigate SQL injection risk."""
+        if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", identifier):
+            raise ValueError("Invalid table name")
+        return identifier

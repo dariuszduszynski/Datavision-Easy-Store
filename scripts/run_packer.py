@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 class DummySourceProvider:
     async def get_pending_files(self, shard_id: int, limit: int):
-        files = []
+        files: list[object] = []
         if files:
             logger.info(
                 "DummySourceProvider.get_pending_files stub returning files",

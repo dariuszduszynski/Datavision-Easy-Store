@@ -51,12 +51,17 @@ class PostgresConnector(DatabaseConnector):
                 )
                 return None
 
-            def scalars(self):
-                logger.debug("DummyResult.scalars stub invoked; returning empty list")
-                return self
+            def first(self) -> None:
+                logger.debug("DummyResult.first stub invoked; returning None")
+                return None
 
             def all(self) -> List[Any]:
+                logger.debug("DummyResult.all stub invoked; returning []")
                 return []
+
+            def scalars(self) -> "DummyResult":
+                logger.debug("DummyResult.scalars stub invoked; returning empty list")
+                return self
 
         class DummyDialect:
             name = "stub"
@@ -90,36 +95,6 @@ class PostgresConnector(DatabaseConnector):
                     args,
                     kwargs,
                 )
-
-                class DummyResult:
-                    def __init__(self) -> None:
-                        self.rowcount = 0
-
-                    def scalar_one(self) -> int:
-                        logger.debug("DummyResult.scalar_one stub invoked; returning 0")
-                        return 0
-
-                    def scalar_one_or_none(self) -> None:
-                        logger.debug(
-                            "DummyResult.scalar_one_or_none stub invoked; "
-                            "returning None"
-                        )
-                        return None
-
-                    def first(self):
-                        logger.debug("DummyResult.first stub invoked; returning None")
-                        return None
-
-                    def all(self) -> List[Any]:
-                        logger.debug("DummyResult.all stub invoked; returning []")
-                        return []
-
-                    def scalars(self):
-                        logger.debug(
-                            "DummyResult.scalars stub invoked; returning empty list"
-                        )
-                        return self
-
                 return DummyResult()
 
             async def scalar(self, *args: Any, **kwargs: Any) -> None:

@@ -34,7 +34,7 @@ async def test_marker_end_to_end_shutdown(async_db_engine) -> None:
         async with session.begin():
             session.add_all(entries)
 
-    task = asyncio.create_task(marker.run_forever(interval_seconds=0.05))
+    task = asyncio.create_task(marker.run_forever(interval_seconds=0))
     await asyncio.sleep(0.2)
     await marker.shutdown()
     await asyncio.wait_for(task, timeout=5)
