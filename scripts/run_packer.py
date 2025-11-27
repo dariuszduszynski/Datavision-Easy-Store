@@ -3,10 +3,10 @@
 Entrypoint dla Multi-Shard Packer.
 """
 
+import asyncio
 import logging
 import os
 import socket
-import asyncio
 
 from des.assignment.shard_router import ShardAssignment
 from des.config.config import Config

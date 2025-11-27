@@ -19,5 +19,8 @@ COPY setup.py .
 # Install package
 RUN pip install -e .
 
+# Expose API port
+EXPOSE 8000
+
 # Default command (override in k8s)
 CMD ["python", "-m", "scripts.run_packer"]

@@ -44,10 +44,15 @@ class Config:
         db_url = os.getenv("DES_DB_URL", "postgresql+asyncpg://des:des@db/des")
         archive_bucket = os.getenv("DES_ARCHIVE_BUCKET", "des-archive")
 
+        # Unique numeric identifier for this node within the cluster.
         node_id = int(os.getenv("DES_NODE_ID", "1"))
+        # Number of bits used for wraparound hashing (2**wrap_bits buckets).
         wrap_bits = int(os.getenv("DES_WRAP_BITS", "10"))
+        # Number of bits defining total shard count for DES (2**shard_bits shards).
         shard_bits = int(os.getenv("DES_SHARD_BITS", "8"))
+        # Local working directory for packer scratch/output files.
         packer_workdir = os.getenv("DES_PACKER_WORKDIR", "/app/workdir")
+        # Base URL of the assignment service used by packer.
         assign_host = os.getenv("DES_ASSIGN_HOST", "http://localhost:8000")
 
         parsed = urlparse(db_url)

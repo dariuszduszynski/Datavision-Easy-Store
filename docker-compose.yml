@@ -11,3 +11,16 @@ services:
       DES_SHARD_BITS:
       DES_PACKER_WORKDIR:
       DES_ASSIGN_HOST:
+  api:
+    build: .
+    command: python scripts/run_api.py
+    ports:
+      - "8000:8000"
+    environment:
+      DES_DB_URL:
+      DES_ARCHIVE_BUCKET:
+      DES_NODE_ID:
+      DES_SHARD_BITS:
+      DES_WRAP_BITS:
+      DES_PACKER_WORKDIR:
+      DES_ASSIGN_HOST:
