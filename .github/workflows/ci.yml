@@ -19,7 +19,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12" # Używamy najnowszej wersji do lintowania
+          python-version: "3.12.10" # Używamy spójnie z lokalnym środowiskiem
           cache: 'pip'
 
       - name: Install dependencies
@@ -63,7 +63,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.12.10"
           cache: 'pip'
 
       - name: Install dependencies
@@ -91,7 +91,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11" # Zachowałem Twoją wersję 3.11 dla testów integracyjnych
+          python-version: "3.12.10"
           cache: 'pip'
 
       - name: Install dependencies

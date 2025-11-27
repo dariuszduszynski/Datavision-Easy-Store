@@ -41,11 +41,11 @@ setup(
             "des-marker=des.cli.des_marker:main",
         ],
     },
-    python_requires=">=3.11",
+    python_requires=">=3.12",
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Developers",
         "License :: OSI Approved :: MIT License",
-        "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
     ],
 )

@@ -71,7 +71,7 @@ Grafana dashboard template: `config/grafana/dashboards/marker.json`
 
 ## Requirements
 
-- Python 3.11+
+- Python 3.12.10 (recommend 3.12.x)
 - AWS S3/HCP-compatible storage (for Range GETs and uploads)
 - PostgreSQL (metadata DB for shard locks and container records)
 - Optional caches/DB drivers: Redis, Oracle (`oracledb`), MSSQL (`pymssql`), MySQL/MariaDB (`PyMySQL`)
