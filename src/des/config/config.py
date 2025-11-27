@@ -41,8 +41,8 @@ class Config:
 
     @classmethod
     def from_env(cls) -> "Config":
-        db_url = os.environ["DES_DB_URL"]
-        archive_bucket = os.environ["DES_ARCHIVE_BUCKET"]
+        db_url = os.getenv("DES_DB_URL", "postgresql+asyncpg://des:des@db/des")
+        archive_bucket = os.getenv("DES_ARCHIVE_BUCKET", "des-archive")
 
         node_id = int(os.getenv("DES_NODE_ID", "1"))
         wrap_bits = int(os.getenv("DES_WRAP_BITS", "10"))

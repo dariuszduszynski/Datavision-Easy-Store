@@ -1,0 +1,13 @@
+version: "3.9"
+
+services:
+  packer:
+    build: .
+    environment:
+      DES_DB_URL:
+      DES_ARCHIVE_BUCKET:
+      DES_NODE_ID:
+      DES_WRAP_BITS:
+      DES_SHARD_BITS:
+      DES_PACKER_WORKDIR:
+      DES_ASSIGN_HOST:
