@@ -116,6 +116,7 @@ class MultiShardPacker:
         self.checkpoint_every_files = self.cfg.get("checkpoint_every_files", 100)
         self.checkpoint_every_seconds = self.cfg.get("checkpoint_every_seconds", 30)
         self.loop_sleep = self.cfg.get("loop_sleep_seconds", 2)
+        self.idle_sleep_seconds = self.cfg.get("idle_sleep_seconds", 1)
         default_work_dir = Path(tempfile.gettempdir()) / "des_packer"
         self.base_dir = Path(self.cfg.get("work_dir") or default_work_dir)
         self.base_dir.mkdir(parents=True, exist_ok=True)
@@ -130,13 +131,18 @@ class MultiShardPacker:
     async def run_forever(self) -> None:
         """Main packer loop."""
         while True:
+            did_work = False
             for shard_id in self.shard_ids:
-                await self._process_shard(shard_id)
+                shard_processed = await self._process_shard(shard_id)
+                did_work = did_work or shard_processed
+            if not did_work:
+                await asyncio.sleep(self.idle_sleep_seconds)
             await asyncio.sleep(self.loop_sleep)
 
-    async def _process_shard(self, shard_id: int) -> None:
+    async def _process_shard(self, shard_id: int) -> bool:
         start = time.perf_counter()
         shard_label = str(shard_id)
+        processed = False
         with log_context(shard_id=shard_id, holder_id=self.holder_id):
             try:
                 logger.info("processing_shard", shard_id=shard_id)
@@ -150,7 +156,7 @@ class MultiShardPacker:
                         shard_id=shard_id,
                         holder_id=self.holder_id,
                     )
-                    return
+                    return processed
 
                 if shard_id not in self._heartbeats:
                     hb = HeartbeatManager(
@@ -175,7 +181,7 @@ class MultiShardPacker:
                         shard_id=shard_id,
                         batch_size=self.batch_size,
                     )
-                    return
+                    return processed
 
                 state = self._writers[shard_id]
                 writer: DesWriter = state["writer"]
@@ -199,6 +205,7 @@ class MultiShardPacker:
                         PACKED_BYTES.labels(shard_id=shard_label).inc(len(f.data))
 
                 await self._maybe_checkpoint(shard_id)
+                processed = True
             except Exception as exc:
                 logger.error(
                     "shard_processing_failed",
@@ -210,6 +217,7 @@ class MultiShardPacker:
             finally:
                 elapsed = time.perf_counter() - start
                 PACKER_LOOP_DURATION.labels(shard_id=shard_label).set(elapsed)
+        return processed
 
     def _dest_key(self, shard_id: int, day: date) -> str:
         prefix = self.dest_prefix.rstrip("/")

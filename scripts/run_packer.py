@@ -19,10 +19,18 @@ logger = logging.getLogger(__name__)
 
 class DummySourceProvider:
     async def get_pending_files(self, shard_id: int, limit: int):
-        logger.info(
-            "DummySourceProvider.get_pending_files stub", extra={"shard_id": shard_id, "limit": limit}
-        )
-        return []
+        files = []
+        if files:
+            logger.info(
+                "DummySourceProvider.get_pending_files stub returning files",
+                extra={"shard_id": shard_id, "limit": limit, "count": len(files)},
+            )
+        else:
+            logger.debug(
+                "DummySourceProvider.get_pending_files stub no files",
+                extra={"shard_id": shard_id, "limit": limit},
+            )
+        return files
 
 
 class NullStorageBackend:

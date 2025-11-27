@@ -18,7 +18,7 @@ class PostgresConnector(DatabaseConnector):
         self._config = config
         self._engine = None
         self._sessionmaker = None
-        logger.warning(
+        logger.debug(
             "PostgresConnector.connect() stub invoked; no real DB connection established",
             extra={"config": config},
         )
@@ -32,22 +32,22 @@ class PostgresConnector(DatabaseConnector):
     @asynccontextmanager
     async def session_factory(self):
         """Dev stub session factory providing a dummy async session."""
-        logger.warning("PostgresConnector.session_factory stub invoked; returning dummy session")
+        logger.debug("PostgresConnector.session_factory stub invoked; returning dummy session")
 
         class DummyResult:
             def __init__(self) -> None:
                 self.rowcount = 0
 
             def scalar_one(self) -> int:
-                logger.warning("DummyResult.scalar_one stub invoked; returning 0")
+                logger.debug("DummyResult.scalar_one stub invoked; returning 0")
                 return 0
 
             def scalar_one_or_none(self) -> None:
-                logger.warning("DummyResult.scalar_one_or_none stub invoked; returning None")
+                logger.debug("DummyResult.scalar_one_or_none stub invoked; returning None")
                 return None
 
             def scalars(self):
-                logger.warning("DummyResult.scalars stub invoked; returning empty list")
+                logger.debug("DummyResult.scalars stub invoked; returning empty list")
                 return self
 
             def all(self) -> List[Any]:
@@ -65,11 +65,11 @@ class PostgresConnector(DatabaseConnector):
                 self.session = session
 
             async def __aenter__(self) -> "DummySession":
-                logger.warning("DummyTransaction.__aenter__ stub invoked")
+                logger.debug("DummyTransaction.__aenter__ stub invoked")
                 return self.session
 
             async def __aexit__(self, exc_type, exc, tb) -> bool:
-                logger.warning("DummyTransaction.__aexit__ stub invoked")
+                logger.debug("DummyTransaction.__aexit__ stub invoked")
                 return False
 
         class DummySession:
@@ -80,7 +80,7 @@ class PostgresConnector(DatabaseConnector):
                 return self._bind
 
             async def execute(self, *args: Any, **kwargs: Any) -> DummyResult:
-                logger.warning(
+                logger.debug(
                     "DummySession.execute stub invoked; sql_args=%r sql_kwargs=%r",
                     args,
                     kwargs,
@@ -91,25 +91,25 @@ class PostgresConnector(DatabaseConnector):
                         self.rowcount = 0
 
                     def scalar_one(self) -> int:
-                        logger.warning("DummyResult.scalar_one stub invoked; returning 0")
+                        logger.debug("DummyResult.scalar_one stub invoked; returning 0")
                         return 0
 
                     def scalar_one_or_none(self) -> None:
-                        logger.warning(
+                        logger.debug(
                             "DummyResult.scalar_one_or_none stub invoked; returning None"
                         )
                         return None
 
                     def first(self):
-                        logger.warning("DummyResult.first stub invoked; returning None")
+                        logger.debug("DummyResult.first stub invoked; returning None")
                         return None
 
                     def all(self) -> List[Any]:
-                        logger.warning("DummyResult.all stub invoked; returning []")
+                        logger.debug("DummyResult.all stub invoked; returning []")
                         return []
 
                     def scalars(self):
-                        logger.warning(
+                        logger.debug(
                             "DummyResult.scalars stub invoked; returning empty list"
                         )
                         return self
@@ -117,46 +117,46 @@ class PostgresConnector(DatabaseConnector):
                 return DummyResult()
 
             async def scalar(self, *args: Any, **kwargs: Any) -> None:
-                logger.warning("DummySession.scalar stub invoked")
+                logger.debug("DummySession.scalar stub invoked")
                 return None
 
             async def scalars(self, *args: Any, **kwargs: Any) -> List[Any]:
-                logger.warning("DummySession.scalars stub invoked; returning []")
+                logger.debug("DummySession.scalars stub invoked; returning []")
                 return []
 
             async def commit(self) -> None:
-                logger.warning("DummySession.commit stub invoked")
+                logger.debug("DummySession.commit stub invoked")
 
             async def rollback(self) -> None:
-                logger.warning("DummySession.rollback stub invoked")
+                logger.debug("DummySession.rollback stub invoked")
 
             def add(self, *args: Any, **kwargs: Any) -> None:
-                logger.warning(
+                logger.debug(
                     "DummySession.add stub invoked; add_args=%r add_kwargs=%r",
                     args,
                     kwargs,
                 )
 
             def begin(self) -> DummyTransaction:
-                logger.warning("DummySession.begin stub invoked")
+                logger.debug("DummySession.begin stub invoked")
                 return DummyTransaction(self)
 
         session = DummySession()
         try:
             yield session
         finally:
-            logger.warning("PostgresConnector.session_factory context exited")
+            logger.debug("PostgresConnector.session_factory context exited")
 
     def get_files_to_migrate(self, limit: int) -> List[Dict[str, Any]]:
         """Stub: return no files to migrate."""
-        logger.info("PostgresConnector.get_files_to_migrate stub invoked", extra={"limit": limit})
+        logger.debug("PostgresConnector.get_files_to_migrate stub invoked", extra={"limit": limit})
         return []
 
     async def try_acquire_shard_lock(
         self, shard_id: int, holder_id: str, ttl_seconds: int
     ) -> bool:
         """Dev stub: pretend shard lock is always acquired."""
-        logger.warning(
+        logger.debug(
             "PostgresConnector.try_acquire_shard_lock stub invoked; returning True",
             extra={"shard_id": shard_id, "holder_id": holder_id, "ttl_seconds": ttl_seconds},
         )
@@ -164,7 +164,7 @@ class PostgresConnector(DatabaseConnector):
 
     def update_status(self, file_id: int, status: str, **kwargs: Any) -> None:
         """Stub: log status update request."""
-        logger.info(
+        logger.debug(
             "PostgresConnector.update_status stub invoked",
             extra={"file_id": file_id, "status": status, "extra": kwargs},
         )
