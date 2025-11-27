@@ -36,7 +36,8 @@ class DummySourceProvider:
 class NullStorageBackend:
     async def upload(self, local_path: str, dest_key: str) -> None:
         logger.info(
-            "NullStorageBackend.upload stub", extra={"local_path": local_path, "dest_key": dest_key}
+            "NullStorageBackend.upload stub",
+            extra={"local_path": local_path, "dest_key": dest_key},
         )
 
 

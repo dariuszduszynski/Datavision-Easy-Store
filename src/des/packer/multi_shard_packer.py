@@ -138,7 +138,8 @@ class MultiShardPacker:
             if not did_work:
                 idle_sleep_seconds = 60
                 logger.info(
-                    "Idle: no work detected, sleeping for %s seconds", idle_sleep_seconds
+                    "Idle: no work detected, sleeping for %s seconds",
+                    idle_sleep_seconds,
                 )
                 await asyncio.sleep(idle_sleep_seconds)
             await asyncio.sleep(self.loop_sleep)

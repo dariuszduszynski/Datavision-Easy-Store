@@ -24,7 +24,9 @@ class CatalogEntry(Base):
     des_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     des_shard: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     des_status: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
-    retry_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=0)
+    retry_count: Mapped[Optional[int]] = mapped_column(
+        Integer, nullable=True, default=0
+    )
     last_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     source_bucket: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)

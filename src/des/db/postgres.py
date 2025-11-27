@@ -19,7 +19,8 @@ class PostgresConnector(DatabaseConnector):
         self._engine = None
         self._sessionmaker = None
         logger.debug(
-            "PostgresConnector.connect() stub invoked; no real DB connection established",
+            "PostgresConnector.connect() stub invoked; "
+            "no real DB connection established",
             extra={"config": config},
         )
 
@@ -32,7 +33,9 @@ class PostgresConnector(DatabaseConnector):
     @asynccontextmanager
     async def session_factory(self):
         """Dev stub session factory providing a dummy async session."""
-        logger.debug("PostgresConnector.session_factory stub invoked; returning dummy session")
+        logger.debug(
+            "PostgresConnector.session_factory stub invoked; returning dummy session"
+        )
 
         class DummyResult:
             def __init__(self) -> None:
@@ -43,7 +46,9 @@ class PostgresConnector(DatabaseConnector):
                 return 0
 
             def scalar_one_or_none(self) -> None:
-                logger.debug("DummyResult.scalar_one_or_none stub invoked; returning None")
+                logger.debug(
+                    "DummyResult.scalar_one_or_none stub invoked; returning None"
+                )
                 return None
 
             def scalars(self):
@@ -96,7 +101,8 @@ class PostgresConnector(DatabaseConnector):
 
                     def scalar_one_or_none(self) -> None:
                         logger.debug(
-                            "DummyResult.scalar_one_or_none stub invoked; returning None"
+                            "DummyResult.scalar_one_or_none stub invoked; "
+                            "returning None"
                         )
                         return None
 
@@ -149,7 +155,10 @@ class PostgresConnector(DatabaseConnector):
 
     def get_files_to_migrate(self, limit: int) -> List[Dict[str, Any]]:
         """Stub: return no files to migrate."""
-        logger.debug("PostgresConnector.get_files_to_migrate stub invoked", extra={"limit": limit})
+        logger.debug(
+            "PostgresConnector.get_files_to_migrate stub invoked",
+            extra={"limit": limit},
+        )
         return []
 
     async def try_acquire_shard_lock(
@@ -158,7 +167,11 @@ class PostgresConnector(DatabaseConnector):
         """Dev stub: pretend shard lock is always acquired."""
         logger.debug(
             "PostgresConnector.try_acquire_shard_lock stub invoked; returning True",
-            extra={"shard_id": shard_id, "holder_id": holder_id, "ttl_seconds": ttl_seconds},
+            extra={
+                "shard_id": shard_id,
+                "holder_id": holder_id,
+                "ttl_seconds": ttl_seconds,
+            },
         )
         return True
 
