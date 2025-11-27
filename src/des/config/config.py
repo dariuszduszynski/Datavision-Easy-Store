@@ -49,7 +49,7 @@ class Config:
         # Number of bits used for wraparound hashing (2**wrap_bits buckets).
         wrap_bits = int(os.getenv("DES_WRAP_BITS", "10"))
         # Number of bits defining total shard count for DES (2**shard_bits shards).
-        shard_bits = int(os.getenv("DES_SHARD_BITS", "8"))
+        shard_bits = int(os.getenv("DES_SHARD_BITS", "4"))
         # Local working directory for packer scratch/output files.
         packer_workdir = os.getenv("DES_PACKER_WORKDIR", "/app/workdir")
         # Base URL of the assignment service used by packer.
