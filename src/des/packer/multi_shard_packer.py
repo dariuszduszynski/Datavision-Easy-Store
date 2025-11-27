@@ -136,7 +136,11 @@ class MultiShardPacker:
                 shard_processed = await self._process_shard(shard_id)
                 did_work = did_work or shard_processed
             if not did_work:
-                await asyncio.sleep(self.idle_sleep_seconds)
+                idle_sleep_seconds = 60
+                logger.info(
+                    "Idle: no work detected, sleeping for %s seconds", idle_sleep_seconds
+                )
+                await asyncio.sleep(idle_sleep_seconds)
             await asyncio.sleep(self.loop_sleep)
 
     async def _process_shard(self, shard_id: int) -> bool:
