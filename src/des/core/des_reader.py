@@ -33,10 +33,6 @@ class DesReader:
     ) -> None:
         self.path = path
         self._f: BinaryIO = open(path, "rb")
-        self._cache = cache
-        self._cache_key = cache_key or self._default_cache_key()
-        self._index_loaded = False
-        self._index_by_name: dict[str, IndexEntry] = {}
         self.file_size: int = 0
         self.data_start: int = 0
         self.data_length: int = 0
@@ -45,6 +41,10 @@ class DesReader:
         self.index_start: int = 0
         self.index_length: int = 0
         self.file_count: int = 0
+        self._cache = cache
+        self._cache_key = cache_key or self._default_cache_key()
+        self._index_loaded = False
+        self._index_by_name: dict[str, IndexEntry] = {}
         self._read_footer()
 
     def _read_footer(self) -> None:
