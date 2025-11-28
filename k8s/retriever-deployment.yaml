@@ -1,0 +1,60 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: des-retriever-config
+data:
+  DES_S3_BUCKET: "des-archives"
+  DES_S3_PREFIX: ""
+  DES_CACHE_BACKEND: "redis"
+  DES_REDIS_URL: "redis://redis:6379"
+  DES_CACHE_TTL: "3600"
+  DES_SHARD_BITS: "8"
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: des-retriever
+spec:
+  serviceName: des-retriever
+  replicas: 3
+  selector:
+    matchLabels:
+      app: des-retriever
+  template:
+    metadata:
+      labels:
+        app: des-retriever
+    spec:
+      containers:
+        - name: retriever
+          image: des-retriever:latest
+          ports:
+            - containerPort: 8001
+              name: http
+          envFrom:
+            - configMapRef:
+                name: des-retriever-config
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8001
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 8001
+            initialDelaySeconds: 15
+            periodSeconds: 10
